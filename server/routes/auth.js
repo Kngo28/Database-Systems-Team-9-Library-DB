@@ -102,4 +102,40 @@ async function login(req, res) {
     });
 }
 
-module.exports = { register, login };
+async function registerStaff(req, res) {
+    let body = '';
+
+    // collect incoming request data in chunks, then process once fully received
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+        try {
+            const { first_name, last_name, email, username, password, phone_number, birthday, staff_permissions } = JSON.parse(body);
+
+            // hash the password before storing
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            // insert into Person table with role 1 (staff)
+            const [result] = await db.query(
+                `INSERT INTO Person (First_name, Last_name, email, username, password, role, phone_number, birthday, account_status, borrow_status)
+                 VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1, 1)`,
+                [first_name, last_name, email, username, hashedPassword, phone_number, birthday]
+            );
+
+            const personId = result.insertId;
+
+            // insert into Staff subtable with the provided staff_permissions. staff_permissions 1 = regular staff, 2 = admin
+            await db.query(
+                `INSERT INTO Staff (Person_ID, Staff_permissions) VALUES (?, ?)`,
+                [personId, staff_permissions]
+            );
+
+            res.writeHead(201);
+            res.end(JSON.stringify({ message: 'Staff registered successfully' }));
+        } catch (err) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Staff registration failed', details: err.message }));
+        }
+    });
+}
+
+module.exports = { register, login, registerStaff };
