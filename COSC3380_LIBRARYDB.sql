@@ -56,9 +56,9 @@ CREATE TABLE IF NOT EXISTS Person (
   Last_name       VARCHAR(50) NOT NULL,
   email           VARCHAR(50) ,
   username        VARCHAR(50) ,
-  password        VARCHAR(50) ,
+  password        VARCHAR(60) ,
   role            SMALLINT NOT NULL,
-  phone_number    INT,
+  phone_number    VARCHAR(20) ,
   birthday        DATE,
   account_status  SMALLINT,
   borrow_status   SMALLINT
