@@ -23,8 +23,7 @@ async function register(req, res) {
 
             const personId = result.insertId;
 
-            // also insert into User subtable — User_permissions 1 = standard user for now
-            // this may expand later if specific permission levels are added
+            // also insert into User subtable — User_permissions 1 = standard user for now. this may expand later if specific permission levels are added
             await db.query(
                 `INSERT INTO User (Person_ID, User_permissions) VALUES (?, 1)`,
                 [personId]
@@ -39,4 +38,56 @@ async function register(req, res) {
     });
 }
 
-module.exports = { register };
+async function login(req, res) {
+    let body = '';
+
+    // collect incoming request data in chunks, then process once fully received
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+        try {
+            const { username, password } = JSON.parse(body);
+
+            // look up the person by username
+            const [rows] = await db.query(
+                `SELECT * FROM Person WHERE username = ?`,
+                [username]
+            );
+
+            // if no user found, reject — we say "invalid credentials" instead of "user not found" so we don't hint to attackers whether a username exists
+            if (rows.length === 0) {
+                res.writeHead(401);
+                return res.end(JSON.stringify({ error: 'Invalid credentials' }));
+            }
+
+            const person = rows[0];
+
+            // check if account is active (account_status 1 = active, 0 = disabled)
+            if (person.account_status !== 1) {
+                res.writeHead(403);
+                return res.end(JSON.stringify({ error: 'Account is disabled' }));
+            }
+
+            // compare submitted password against the stored bcrypt hash
+            const passwordMatch = await bcrypt.compare(password, person.password);
+            if (!passwordMatch) {
+                res.writeHead(401);
+                return res.end(JSON.stringify({ error: 'Invalid credentials' }));
+            }
+
+            // create a JWT containing the person's id and role. role 1 = staff, role 2 = user/patron. the token expires in 8 hours
+            const token = jwt.sign(
+                { person_id: person.Person_ID, role: person.role },
+                process.env.JWT_SECRET,
+                { expiresIn: '8h' }
+            );
+
+            res.writeHead(200);
+            res.end(JSON.stringify({ token, role: person.role }));
+        } catch (err) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Login failed', details: err.message }));
+        }
+    });
+}
+
+module.exports = { register, login };
