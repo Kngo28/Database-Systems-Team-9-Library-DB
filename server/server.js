@@ -2,7 +2,7 @@ const http = require('http');
 const PORT = 3000;
 const db = require('./db');
 const auth = require('./routes/auth');
-const { verifyToken, requireRole } = require('./middleware/auth');
+const { verifyToken, requireRole, requireAdmin } = require('./middleware/auth');
 
 const server = http.createServer((req, res) => {
     // allow requests from any origin (needed for React frontend on a different port)
@@ -48,6 +48,14 @@ const server = http.createServer((req, res) => {
             requireRole(1)(req, res, () => {
                 res.writeHead(200);
                 res.end(JSON.stringify({ message: 'Welcome, staff member' }));
+            });
+        });
+
+    // admin-only route — register a new staff member
+    } else if (req.method === 'POST' && req.url === '/api/auth/register-staff') {
+        verifyToken(req, res, () => {
+            requireAdmin(req, res, () => {
+                auth.registerStaff(req, res);
             });
         });
 
