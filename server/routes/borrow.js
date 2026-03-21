@@ -131,6 +131,12 @@ async function getBorrowedItems(req, res) {
         // extract person ID from URL — e.g. /api/borrow/3
         const personId = req.url.split('/')[3];
 
+        // if the requester is a patron (role 2), they can only view their own borrowed items
+        if (req.user.role === 2 && req.user.person_id !== parseInt(personId)) {
+            res.writeHead(403);
+            return res.end(JSON.stringify({ error: 'Access denied' }));
+        }
+
         // check the person exists
         const [personRows] = await db.query(`SELECT Person_ID FROM Person WHERE Person_ID = ?`, [personId]);
         if (personRows.length === 0) {
