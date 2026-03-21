@@ -67,4 +67,63 @@ async function borrowItem(req, res) {
     });
 }
 
-module.exports = { borrowItem };
+async function returnItem(req, res) {
+    let body = '';
+
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+        try {
+            const { borrowedItem_id } = JSON.parse(body);
+
+            // step 1 — look up the borrowed item record, join Copy and Item to get copy_id and item_type
+            const [borrowRows] = await db.query(
+                `SELECT bi.BorrowedItem_ID, bi.returnBy_date, bi.Copy_ID, bi.Person_ID, i.Item_type
+                 FROM BorrowedItem bi
+                 JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
+                 JOIN Item i ON cp.Item_ID = i.Item_ID
+                 WHERE bi.BorrowedItem_ID = ?`,
+                [borrowedItem_id]
+            );
+            if (borrowRows.length === 0) {
+                res.writeHead(404);
+                return res.end(JSON.stringify({ error: 'Borrowed item record not found' }));
+            }
+
+            const record = borrowRows[0];
+            const today = new Date();
+            const returnByDate = new Date(record.returnBy_date);
+            const formatDate = (d) => d.toISOString().split('T')[0];
+
+            // step 2 — check if return is late
+            const isLate = today > returnByDate;
+
+            if (isLate) {
+                // step 3 — determine flat fee based on item type. 1 = book $5, 2 = CD $10, 3 = device $20
+                const feeMap = { 1: 5.00, 2: 10.00, 3: 20.00 };
+                const lateFee = feeMap[record.Item_type] || 5.00;
+
+                // step 4 — insert a FeeOwed record. status 1 = unpaid
+                await db.query(
+                    `INSERT INTO FeeOwed (date_owed, status, late_fee, Person_ID, BorrowedItem_ID)
+                     VALUES (?, 1, ?, ?, ?)`,
+                    [formatDate(today), lateFee, record.Person_ID, borrowedItem_id]
+                );
+            }
+
+            // step 5 — set copy status back to 1 (available)
+            await db.query(`UPDATE Copy SET Copy_status = 1 WHERE Copy_ID = ?`, [record.Copy_ID]);
+
+            res.writeHead(200);
+            res.end(JSON.stringify({
+                message: 'Item returned successfully',
+                late: isLate,
+                fee_charged: isLate ? (({ 1: 5.00, 2: 10.00, 3: 20.00 })[record.Item_type] || 5.00) : 0
+            }));
+        } catch (err) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to return item', details: err.message }));
+        }
+    });
+}
+
+module.exports = { borrowItem, returnItem };

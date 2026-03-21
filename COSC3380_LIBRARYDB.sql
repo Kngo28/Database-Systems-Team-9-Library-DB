@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS RoomReservation (
 
 
 CREATE TABLE IF NOT EXISTS FeeOwed (
-  Fine_ID          INT PRIMARY KEY NOT NULL,
+  Fine_ID          INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
   date_owed        DATETIME NOT NULL,
   status           SMALLINT NOT NULL,
   late_fee         DECIMAL(10,2),

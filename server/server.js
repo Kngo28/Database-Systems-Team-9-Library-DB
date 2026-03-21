@@ -95,6 +95,12 @@ const server = http.createServer((req, res) => {
             borrow.borrowItem(req, res);
         });
 
+    // any logged-in user can return a borrowed item
+    } else if (req.method === 'POST' && req.url === '/api/borrow/return') {
+        verifyToken(req, res, () => {
+            borrow.returnItem(req, res);
+        });
+
     // admin-only route — register a new staff member
     } else if (req.method === 'POST' && req.url === '/api/auth/register-staff') {
         verifyToken(req, res, () => {
