@@ -1,4 +1,5 @@
 const db = require('../db');
+const { URL } = require('url');
 
 async function addItem(req, res) {
     let body = '';
@@ -64,4 +65,39 @@ async function addItem(req, res) {
     });
 }
 
-module.exports = { addItem };
+async function getItems(req, res) {
+    try {
+        // parse query params from the URL — e.g. /api/items?search=gatsby&type=1
+        const { searchParams } = new URL(req.url, 'http://localhost');
+        const search = searchParams.get('search');  
+        const type = searchParams.get('type');     
+
+        // left join Book, CD, Device so we get subtype details regardless of item type. left join Copy to count total and available copies per item.
+        const [rows] = await db.query(
+            `SELECT
+                i.Item_ID, i.Item_name, i.Item_type,
+                b.author_firstName, b.author_lastName, b.publisher, b.language, b.year_published, b.Book_damage_fine, b.Book_loss_fine,
+                c.CD_type, c.rating, c.release_date, c.CD_damage_fine, c.CD_loss_fine,
+                d.Device_type, d.Device_damage_fine, d.Device_loss_fine,
+                COUNT(cp.Copy_ID) AS total_copies,
+                SUM(CASE WHEN cp.Copy_status = 1 THEN 1 ELSE 0 END) AS available_copies
+            FROM Item i
+            LEFT JOIN Book b ON i.Item_ID = b.Item_ID
+            LEFT JOIN CD c ON i.Item_ID = c.Item_ID
+            LEFT JOIN Device d ON i.Item_ID = d.Item_ID
+            LEFT JOIN Copy cp ON i.Item_ID = cp.Item_ID
+            WHERE (? IS NULL OR i.Item_name LIKE ?)
+              AND (? IS NULL OR i.Item_type = ?)
+            GROUP BY i.Item_ID`,
+            [search, search ? `%${search}%` : null, type, type]
+        );
+
+        res.writeHead(200);
+        res.end(JSON.stringify(rows));
+    } catch (err) {
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: 'Failed to fetch items', details: err.message }));
+    }
+}
+
+module.exports = { addItem, getItems };

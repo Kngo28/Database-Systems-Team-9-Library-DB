@@ -52,6 +52,12 @@ const server = http.createServer((req, res) => {
             });
         });
 
+    // any logged-in user can browse the item catalog
+    } else if (req.method === 'GET' && req.url.startsWith('/api/items') && !req.url.startsWith('/api/items/')) {
+        verifyToken(req, res, () => {
+            items.getItems(req, res);
+        });
+
     // staff-only route — add a new item to the library
     } else if (req.method === 'POST' && req.url === '/api/items') {
         verifyToken(req, res, () => {
