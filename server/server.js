@@ -58,6 +58,14 @@ const server = http.createServer((req, res) => {
             items.getItems(req, res);
         });
 
+    // staff-only route — edit an existing item
+    } else if (req.method === 'PUT' && req.url.startsWith('/api/items/')) {
+        verifyToken(req, res, () => {
+            requireRole(1)(req, res, () => {
+                items.updateItem(req, res);
+            });
+        });
+
     // any logged-in user can get a single item's full details
     } else if (req.method === 'GET' && req.url.startsWith('/api/items/')) {
         verifyToken(req, res, () => {

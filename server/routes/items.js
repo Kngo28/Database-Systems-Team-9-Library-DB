@@ -161,4 +161,64 @@ async function getItemById(req, res) {
     }
 }
 
-module.exports = { addItem, getItems, getItemById };
+async function updateItem(req, res) {
+    let body = '';
+
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+        try {
+            // extract item ID from URL — e.g. /api/items/5 → itemId = 5
+            const itemId = req.url.split('/')[3];
+
+            const {
+                item_name,
+                // book fields
+                author_firstName, author_lastName, publisher, language, year_published, book_damage_fine, book_loss_fine,
+                // cd fields
+                cd_type, rating, release_date, cd_damage_fine, cd_loss_fine,
+                // device fields
+                device_type, device_damage_fine, device_loss_fine
+            } = JSON.parse(body);
+
+            // step 1 — check the item exists and get its type so we know which subtype table to update
+            const [itemRows] = await db.query(`SELECT Item_type FROM Item WHERE Item_ID = ?`, [itemId]);
+            if (itemRows.length === 0) {
+                res.writeHead(404);
+                return res.end(JSON.stringify({ error: 'Item not found' }));
+            }
+            const item_type = itemRows[0].Item_type;
+
+            // step 2 — update the Item table
+            await db.query(`UPDATE Item SET Item_name = ? WHERE Item_ID = ?`, [item_name, itemId]);
+
+            // step 3 — update the correct subtype table
+            if (item_type === 1) {
+                await db.query(
+                    `UPDATE Book SET author_firstName = ?, author_lastName = ?, publisher = ?, language = ?, year_published = ?, Book_damage_fine = ?, Book_loss_fine = ?
+                     WHERE Item_ID = ?`,
+                    [author_firstName, author_lastName, publisher, language, year_published, book_damage_fine, book_loss_fine, itemId]
+                );
+            } else if (item_type === 2) {
+                await db.query(
+                    `UPDATE CD SET CD_type = ?, rating = ?, release_date = ?, CD_damage_fine = ?, CD_loss_fine = ?
+                     WHERE Item_ID = ?`,
+                    [cd_type, rating, release_date, cd_damage_fine, cd_loss_fine, itemId]
+                );
+            } else if (item_type === 3) {
+                await db.query(
+                    `UPDATE Device SET Device_type = ?, Device_damage_fine = ?, Device_loss_fine = ?
+                     WHERE Item_ID = ?`,
+                    [device_type, device_damage_fine, device_loss_fine, itemId]
+                );
+            }
+
+            res.writeHead(200);
+            res.end(JSON.stringify({ message: 'Item updated successfully' }));
+        } catch (err) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Failed to update item', details: err.message }));
+        }
+    });
+}
+
+module.exports = { addItem, getItems, getItemById, updateItem };
