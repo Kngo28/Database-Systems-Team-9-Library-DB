@@ -96,6 +96,13 @@ async function returnItem(req, res) {
             }
 
             const record = borrowRows[0];
+
+            // patrons can only return their own borrowed items, staff can return on behalf of anyone
+            if (req.user.role === 2 && req.user.person_id !== record.Person_ID) {
+                res.writeHead(403);
+                return res.end(JSON.stringify({ error: 'You can only return your own borrowed items' }));
+            }
+
             const today = new Date();
             const returnByDate = new Date(record.returnBy_date);
             const formatDate = (d) => d.toISOString().split('T')[0];
