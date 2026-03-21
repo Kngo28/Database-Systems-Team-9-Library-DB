@@ -89,6 +89,12 @@ const server = http.createServer((req, res) => {
             });
         });
 
+    // any logged-in user can view borrowed items for a person
+    } else if (req.method === 'GET' && req.url.startsWith('/api/borrow/')) {
+        verifyToken(req, res, () => {
+            borrow.getBorrowedItems(req, res);
+        });
+
     // any logged-in user can borrow an item
     } else if (req.method === 'POST' && req.url === '/api/borrow') {
         verifyToken(req, res, () => {

@@ -126,4 +126,38 @@ async function returnItem(req, res) {
     });
 }
 
-module.exports = { borrowItem, returnItem };
+async function getBorrowedItems(req, res) {
+    try {
+        // extract person ID from URL — e.g. /api/borrow/3
+        const personId = req.url.split('/')[3];
+
+        // check the person exists
+        const [personRows] = await db.query(`SELECT Person_ID FROM Person WHERE Person_ID = ?`, [personId]);
+        if (personRows.length === 0) {
+            res.writeHead(404);
+            return res.end(JSON.stringify({ error: 'Person not found' }));
+        }
+
+        // get all borrowed items for this person — join Item so we can return the item name and type
+        const [rows] = await db.query(
+            `SELECT
+                bi.BorrowedItem_ID, bi.borrow_date, bi.returnBy_date,
+                bi.Copy_ID, cp.Copy_status,
+                i.Item_ID, i.Item_name, i.Item_type
+             FROM BorrowedItem bi
+             JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
+             JOIN Item i ON cp.Item_ID = i.Item_ID
+             WHERE bi.Person_ID = ?
+             ORDER BY bi.borrow_date DESC`,
+            [personId]
+        );
+
+        res.writeHead(200);
+        res.end(JSON.stringify(rows));
+    } catch (err) {
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: 'Failed to fetch borrowed items', details: err.message }));
+    }
+}
+
+module.exports = { borrowItem, returnItem, getBorrowedItems };
