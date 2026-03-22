@@ -4,6 +4,7 @@ const db = require('./db');
 const auth = require('./routes/auth');
 const items = require('./routes/items');
 const borrow = require('./routes/borrow');
+const fees = require('./routes/fees');
 const { verifyToken, requireRole, requireAdmin } = require('./middleware/auth');
 
 const server = http.createServer((req, res) => {
@@ -113,6 +114,34 @@ const server = http.createServer((req, res) => {
     } else if (req.method === 'POST' && req.url === '/api/borrow/return') {
         verifyToken(req, res, () => {
             borrow.returnItem(req, res);
+        });
+
+    // staff-only — view all payment records
+    } else if (req.method === 'GET' && req.url === '/api/fees/payments') {
+        verifyToken(req, res, () => {
+            requireRole(1)(req, res, () => {
+                fees.getAllPayments(req, res);
+            });
+        });
+
+    // staff-only — view all fees across all patrons
+    } else if (req.method === 'GET' && req.url === '/api/fees') {
+        verifyToken(req, res, () => {
+            requireRole(1)(req, res, () => {
+                fees.getAllFees(req, res);
+            });
+        });
+
+    // any logged-in user can view their own fees, staff can view anyone's
+    } else if (req.method === 'GET' && req.url.startsWith('/api/fees/')) {
+        verifyToken(req, res, () => {
+            fees.getFees(req, res);
+        });
+
+    // any logged-in user can pay their own fees
+    } else if (req.method === 'POST' && req.url === '/api/fees/pay') {
+        verifyToken(req, res, () => {
+            fees.payFee(req, res);
         });
 
     // admin-only route — register a new staff member
