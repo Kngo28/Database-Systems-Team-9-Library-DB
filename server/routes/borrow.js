@@ -179,31 +179,27 @@ async function getBorrowedItems(req, res) {
     }
 }
 
-async function getAllActiveBorrows(req, res) {
+async function getAllBorrows(req, res) {
     try {
-        // get all currently checked out copies (Copy_status 2 = checked out) across all patrons. use MAX(BorrowedItem_ID) per copy to ensure we only get the most recent borrow record, not old history
+        // get all borrow history across all patrons — frontend can filter by Copy_status for active/inactive
         const [rows] = await db.query(
             `SELECT
                 bi.BorrowedItem_ID, bi.borrow_date, bi.returnBy_date,
                 bi.Person_ID, p.First_name, p.Last_name,
-                bi.Copy_ID, i.Item_ID, i.Item_name, i.Item_type
+                bi.Copy_ID, cp.Copy_status, i.Item_ID, i.Item_name, i.Item_type
              FROM BorrowedItem bi
              JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
              JOIN Item i ON cp.Item_ID = i.Item_ID
              JOIN Person p ON bi.Person_ID = p.Person_ID
-             WHERE cp.Copy_status = 2
-               AND bi.BorrowedItem_ID = (
-                   SELECT MAX(b2.BorrowedItem_ID) FROM BorrowedItem b2 WHERE b2.Copy_ID = bi.Copy_ID
-               )
-             ORDER BY bi.returnBy_date ASC`
+             ORDER BY bi.borrow_date DESC`
         );
 
         res.writeHead(200);
         res.end(JSON.stringify(rows));
     } catch (err) {
         res.writeHead(500);
-        res.end(JSON.stringify({ error: 'Failed to fetch active borrows', details: err.message }));
+        res.end(JSON.stringify({ error: 'Failed to fetch borrow history', details: err.message }));
     }
 }
 
-module.exports = { borrowItem, returnItem, getBorrowedItems, getAllActiveBorrows };
+module.exports = { borrowItem, returnItem, getBorrowedItems, getAllBorrows };
