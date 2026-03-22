@@ -9,7 +9,7 @@ async function borrowItem(req, res) {
             const { person_id, copy_id } = JSON.parse(body);
 
             // anyone can only borrow on their own behalf
-            if (req.user.person_id !== person_id) {
+            if (req.user.person_id !== parseInt(person_id)) {
                 res.writeHead(403);
                 return res.end(JSON.stringify({ error: 'You can only borrow on your own behalf' }));
             }
@@ -98,7 +98,7 @@ async function returnItem(req, res) {
             const record = borrowRows[0];
 
             // anyone can only return their own borrowed items
-            if (req.user.person_id !== record.Person_ID) {
+            if (req.user.person_id !== parseInt(record.Person_ID)) {
                 res.writeHead(403);
                 return res.end(JSON.stringify({ error: 'You can only return your own borrowed items' }));
             }
