@@ -3,6 +3,7 @@ const PORT = 3000;
 const db = require('./db');
 const auth = require('./routes/auth');
 const items = require('./routes/items');
+const borrow = require('./routes/borrow');
 const { verifyToken, requireRole, requireAdmin } = require('./middleware/auth');
 
 const server = http.createServer((req, res) => {
@@ -86,6 +87,32 @@ const server = http.createServer((req, res) => {
             requireRole(1)(req, res, () => {
                 items.addItem(req, res);
             });
+        });
+
+    // staff-only — view full borrow history across all patrons
+    } else if (req.method === 'GET' && req.url === '/api/borrow') {
+        verifyToken(req, res, () => {
+            requireRole(1)(req, res, () => {
+                borrow.getAllBorrows(req, res);
+            });
+        });
+
+    // any logged-in user can view borrow history for a specific person (patrons restricted to own records)
+    } else if (req.method === 'GET' && req.url.startsWith('/api/borrow/')) {
+        verifyToken(req, res, () => {
+            borrow.getBorrowedItems(req, res);
+        });
+
+    // any logged-in user can borrow an item on their own behalf
+    } else if (req.method === 'POST' && req.url === '/api/borrow') {
+        verifyToken(req, res, () => {
+            borrow.borrowItem(req, res);
+        });
+
+    // any logged-in user can return their own borrowed item
+    } else if (req.method === 'POST' && req.url === '/api/borrow/return') {
+        verifyToken(req, res, () => {
+            borrow.returnItem(req, res);
         });
 
     // admin-only route — register a new staff member
