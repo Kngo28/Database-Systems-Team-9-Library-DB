@@ -146,6 +146,12 @@ const server = http.createServer((req, res) => {
             fees.payFee(req, res);
         });
 
+    // any logged-in user can make a reservation
+    } else if (req.method === 'POST' && req.url === '/api/reservations') {
+        verifyToken(req, res, () => {
+            rooms.makeReservation(req, res);
+        });
+
     // staff-only — add a new room
     } else if (req.method === 'POST' && req.url === '/api/rooms') {
         verifyToken(req, res, () => {
