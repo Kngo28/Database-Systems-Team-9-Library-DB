@@ -151,6 +151,21 @@ async function returnItem(req, res) {
             // step 5 — set copy status back to 1 (available)
             await db.query(`UPDATE Copy SET Copy_status = 1 WHERE Copy_ID = ?`, [record.Copy_ID]);
 
+            // step 6 — if there is a hold at position 0 on this copy, mark it ready for pickup
+            const [nextHold] = await db.query(
+                `SELECT Hold_ID FROM HoldItem WHERE Copy_ID = ? AND hold_status = 1 AND queue_status = 0`,
+                [record.Copy_ID]
+            );
+            if (nextHold.length > 0) {
+                const expiry = new Date();
+                expiry.setDate(expiry.getDate() + 2);
+                const expiryDate = expiry.toISOString().split('T')[0];
+                await db.query(
+                    `UPDATE HoldItem SET hold_status = 2, expiry_date = ? WHERE Hold_ID = ?`,
+                    [expiryDate, nextHold[0].Hold_ID]
+                );
+            }
+
             res.writeHead(200);
             res.end(JSON.stringify({
                 message: 'Item returned successfully',
