@@ -24,7 +24,7 @@ async function makeReservation(req, res) {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
         try {
-            const { person_id, room_id, start_time, length } = JSON.parse(body);
+            const { person_id, start_time, length } = JSON.parse(body);
 
             // can only make a reservation on own behalf
             if (req.user.person_id !== parseInt(person_id)) {
@@ -38,20 +38,6 @@ async function makeReservation(req, res) {
                 return res.end(JSON.stringify({ error: 'Reservation length must be between 1 and 8 hours' }));
             }
 
-            // check room exists and is available
-            const [roomRows] = await db.query(
-                `SELECT Room_ID, Room_status FROM Room WHERE Room_ID = ?`,
-                [room_id]
-            );
-            if (roomRows.length === 0) {
-                res.writeHead(404);
-                return res.end(JSON.stringify({ error: 'Room not found' }));
-            }
-            if (roomRows[0].Room_status !== 1) {
-                res.writeHead(400);
-                return res.end(JSON.stringify({ error: 'Room is not available' }));
-            }
-
             // check patron doesn't already have an active reservation
             const [existingReservation] = await db.query(
                 `SELECT Reservation_ID FROM RoomReservation
@@ -63,21 +49,64 @@ async function makeReservation(req, res) {
                 return res.end(JSON.stringify({ error: 'You already have an active reservation' }));
             }
 
-            // calculate end time based on start_time + length in hours
             const startDate = new Date(start_time);
             const endDate = new Date(startDate.getTime() + length * 60 * 60 * 1000);
 
-            // check for overlapping reservations on this room
-            const [overlaps] = await db.query(
-                `SELECT Reservation_ID FROM RoomReservation
-                 WHERE Room_ID = ? AND reservation_status = 1
-                 AND start_time < ? AND DATE_ADD(start_time, INTERVAL TIME_TO_SEC(length) SECOND) > ?`,
-                [room_id, endDate, startDate]
+            // find the first available room for the requested time slot
+            const [availableRooms] = await db.query(
+                `SELECT Room_ID FROM Room
+                 WHERE Room_status = 1
+                 AND Room_ID NOT IN (
+                     SELECT Room_ID FROM RoomReservation
+                     WHERE reservation_status = 1
+                     AND start_time < ? AND DATE_ADD(start_time, INTERVAL TIME_TO_SEC(length) SECOND) > ?
+                 )
+                 LIMIT 1`,
+                [endDate, startDate]
             );
-            if (overlaps.length > 0) {
+
+            if (availableRooms.length === 0) {
+                // no rooms available — find the next available time slot
+                const [endTimes] = await db.query(
+                    `SELECT DISTINCT DATE_ADD(start_time, INTERVAL TIME_TO_SEC(length) SECOND) as end_time
+                     FROM RoomReservation
+                     WHERE reservation_status = 1
+                     AND DATE_ADD(start_time, INTERVAL TIME_TO_SEC(length) SECOND) > ?
+                     ORDER BY end_time ASC`,
+                    [startDate]
+                );
+
+                let nextAvailable = null;
+                for (const row of endTimes) {
+                    const candidateStart = new Date(row.end_time);
+                    const candidateEnd = new Date(candidateStart.getTime() + length * 60 * 60 * 1000);
+
+                    const [freeRooms] = await db.query(
+                        `SELECT Room_ID FROM Room
+                         WHERE Room_status = 1
+                         AND Room_ID NOT IN (
+                             SELECT Room_ID FROM RoomReservation
+                             WHERE reservation_status = 1
+                             AND start_time < ? AND DATE_ADD(start_time, INTERVAL TIME_TO_SEC(length) SECOND) > ?
+                         )
+                         LIMIT 1`,
+                        [candidateEnd, candidateStart]
+                    );
+
+                    if (freeRooms.length > 0) {
+                        nextAvailable = candidateStart;
+                        break;
+                    }
+                }
+
                 res.writeHead(400);
-                return res.end(JSON.stringify({ error: 'Room is already booked during that time' }));
+                return res.end(JSON.stringify({
+                    error: 'No rooms available for the requested time slot',
+                    next_available: nextAvailable
+                }));
             }
+
+            const assignedRoomId = availableRooms[0].Room_ID;
 
             // format length as TIME string for MySQL (e.g. 2 hours -> '02:00:00')
             const lengthStr = `${String(length).padStart(2, '0')}:00:00`;
@@ -85,13 +114,14 @@ async function makeReservation(req, res) {
             const [result] = await db.query(
                 `INSERT INTO RoomReservation (start_time, length, reservation_status, Person_ID, Room_ID)
                  VALUES (?, ?, 1, ?, ?)`,
-                [startDate, lengthStr, person_id, room_id]
+                [startDate, lengthStr, person_id, assignedRoomId]
             );
 
             res.writeHead(201);
             res.end(JSON.stringify({
                 message: 'Reservation made successfully',
                 reservation_id: result.insertId,
+                room_id: assignedRoomId,
                 start_time: startDate,
                 end_time: endDate,
                 length_hours: length
