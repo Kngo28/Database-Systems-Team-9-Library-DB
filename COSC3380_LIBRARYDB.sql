@@ -90,8 +90,11 @@ CREATE TABLE IF NOT EXISTS BorrowedItem (
 
 
 CREATE TABLE IF NOT EXISTS HoldItem (
-  Hold_ID       INT PRIMARY KEY NOT NULL,
+  Hold_ID       INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
   queue_status  SMALLINT,
+  hold_status   SMALLINT DEFAULT 1,
+  hold_date     DATE,
+  expiry_date   DATE,
   Person_ID     INT NOT NULL,
   Copy_ID       INT NOT NULL,
   FOREIGN KEY (Person_ID) REFERENCES Person(Person_ID),
