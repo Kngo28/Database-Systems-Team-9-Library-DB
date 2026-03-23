@@ -146,6 +146,12 @@ const server = http.createServer((req, res) => {
             fees.payFee(req, res);
         });
 
+    // any logged-in user can view reservations for a specific person (patrons restricted to own)
+    } else if (req.method === 'GET' && req.url.startsWith('/api/reservations/')) {
+        verifyToken(req, res, () => {
+            rooms.getReservationsForPerson(req, res);
+        });
+
     // any logged-in user can make a reservation
     } else if (req.method === 'POST' && req.url === '/api/reservations') {
         verifyToken(req, res, () => {

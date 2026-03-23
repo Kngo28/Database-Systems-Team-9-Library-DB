@@ -103,4 +103,39 @@ async function makeReservation(req, res) {
     });
 }
 
-module.exports = { addRoom, makeReservation };
+async function getReservationsForPerson(req, res) {
+    try {
+        const personId = req.url.split('/')[3];
+
+        // patrons can only view their own reservations
+        if (req.user.role === 2 && req.user.person_id !== parseInt(personId)) {
+            res.writeHead(403);
+            return res.end(JSON.stringify({ error: 'Access denied' }));
+        }
+
+        const [personRows] = await db.query(`SELECT Person_ID FROM Person WHERE Person_ID = ?`, [personId]);
+        if (personRows.length === 0) {
+            res.writeHead(404);
+            return res.end(JSON.stringify({ error: 'Person not found' }));
+        }
+
+        // get all reservations for this person
+        const [rows] = await db.query(
+            `SELECT
+                r.Reservation_ID, r.start_time, r.length, r.reservation_status,
+                r.Room_ID, r.Person_ID
+             FROM RoomReservation r
+             WHERE r.Person_ID = ?
+             ORDER BY r.start_time DESC`,
+            [personId]
+        );
+
+        res.writeHead(200);
+        res.end(JSON.stringify(rows));
+    } catch (err) {
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: 'Failed to fetch reservations', details: err.message }));
+    }
+}
+
+module.exports = { addRoom, makeReservation, getReservationsForPerson };
