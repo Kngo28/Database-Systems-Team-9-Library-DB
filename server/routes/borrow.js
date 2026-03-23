@@ -42,22 +42,82 @@ async function borrowItem(req, res) {
                 return res.end(JSON.stringify({ error: 'Person is not allowed to borrow' }));
             }
 
-            // step 3 — calculate borrow date (today) and return-by date (2 weeks from today)
+            // step 3 — expire any holds on this copy that have passed their expiry date
+            const today = new Date();
+            const formatDate = (d) => d.toISOString().split('T')[0];
+            const todayStr = formatDate(today);
+
+            const [expiredHolds] = await db.query(
+                `SELECT Hold_ID, queue_status FROM HoldItem
+                 WHERE Copy_ID = ? AND hold_status = 2 AND expiry_date < ?`,
+                [copy_id, todayStr]
+            );
+
+            for (const expired of expiredHolds) {
+                // soft delete the expired hold
+                await db.query(`UPDATE HoldItem SET hold_status = 0 WHERE Hold_ID = ?`, [expired.Hold_ID]);
+                // shift queue for everyone behind it
+                await db.query(
+                    `UPDATE HoldItem SET queue_status = queue_status - 1
+                     WHERE Copy_ID = ? AND hold_status IN (1, 2) AND queue_status > ?`,
+                    [copy_id, expired.queue_status]
+                );
+            }
+
+            // if any holds were expired, check if the next person in queue should be promoted
+            if (expiredHolds.length > 0) {
+                const [nextHold] = await db.query(
+                    `SELECT Hold_ID FROM HoldItem WHERE Copy_ID = ? AND hold_status = 1 AND queue_status = 0`,
+                    [copy_id]
+                );
+                if (nextHold.length > 0) {
+                    const expiry = new Date();
+                    expiry.setDate(expiry.getDate() + 2);
+                    await db.query(
+                        `UPDATE HoldItem SET hold_status = 2, expiry_date = ? WHERE Hold_ID = ?`,
+                        [formatDate(expiry), nextHold[0].Hold_ID]
+                    );
+                }
+            }
+
+            // step 4 — check if there are active holds on this copy
+            const [activeHolds] = await db.query(
+                `SELECT Hold_ID, Person_ID, queue_status FROM HoldItem
+                 WHERE Copy_ID = ? AND hold_status IN (1, 2)`,
+                [copy_id]
+            );
+
+            if (activeHolds.length > 0) {
+                // holds exist — only allow checkout if this patron is first in line (queue_status = 0)
+                const patronHold = activeHolds.find(
+                    h => parseInt(h.Person_ID) === parseInt(person_id) && h.queue_status === 0
+                );
+                if (!patronHold) {
+                    res.writeHead(403);
+                    return res.end(JSON.stringify({ error: 'This copy has active holds. You must be first in line to check it out.' }));
+                }
+                // mark their hold as fulfilled (hold_status 3) and shift the queue
+                await db.query(`UPDATE HoldItem SET hold_status = 3 WHERE Hold_ID = ?`, [patronHold.Hold_ID]);
+                await db.query(
+                    `UPDATE HoldItem SET queue_status = queue_status - 1
+                     WHERE Copy_ID = ? AND hold_status IN (1, 2) AND queue_status > 0`,
+                    [copy_id]
+                );
+            }
+
+            // step 5 — calculate borrow date (today) and return-by date (2 weeks from today)
             const borrowDate = new Date();
             const returnByDate = new Date();
             returnByDate.setDate(returnByDate.getDate() + 14);
 
-            // format dates as YYYY-MM-DD for MySQL
-            const formatDate = (d) => d.toISOString().split('T')[0];
-
-            // step 4 — insert into BorrowedItem
+            // step 6 — insert into BorrowedItem
             const [result] = await db.query(
                 `INSERT INTO BorrowedItem (borrow_date, returnBy_date, Person_ID, Copy_ID)
                  VALUES (?, ?, ?, ?)`,
                 [formatDate(borrowDate), formatDate(returnByDate), person_id, copy_id]
             );
 
-            // step 5 — update the copy status to 2 (checked out)
+            // step 7 — update the copy status to 2 (checked out)
             await db.query(`UPDATE Copy SET Copy_status = 2 WHERE Copy_ID = ?`, [copy_id]);
 
             res.writeHead(201);
@@ -125,6 +185,21 @@ async function returnItem(req, res) {
 
             // step 5 — set copy status back to 1 (available)
             await db.query(`UPDATE Copy SET Copy_status = 1 WHERE Copy_ID = ?`, [record.Copy_ID]);
+
+            // step 6 — if there is a hold at position 0 on this copy, mark it ready for pickup
+            const [nextHold] = await db.query(
+                `SELECT Hold_ID FROM HoldItem WHERE Copy_ID = ? AND hold_status = 1 AND queue_status = 0`,
+                [record.Copy_ID]
+            );
+            if (nextHold.length > 0) {
+                const expiry = new Date();
+                expiry.setDate(expiry.getDate() + 2);
+                const expiryDate = expiry.toISOString().split('T')[0];
+                await db.query(
+                    `UPDATE HoldItem SET hold_status = 2, expiry_date = ? WHERE Hold_ID = ?`,
+                    [expiryDate, nextHold[0].Hold_ID]
+                );
+            }
 
             res.writeHead(200);
             res.end(JSON.stringify({
