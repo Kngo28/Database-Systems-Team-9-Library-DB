@@ -181,10 +181,10 @@ async function returnItem(req, res) {
                 const feeMap = { 1: 5.00, 2: 10.00, 3: 20.00 };
                 const lateFee = feeMap[record.Item_type] || 5.00;
 
-                // step 4 — insert a FeeOwed record. status 1 = unpaid
+                // step 4 — insert a FeeOwed record. status 1 = unpaid, fee_type 1 = late
                 await db.query(
-                    `INSERT INTO FeeOwed (date_owed, status, late_fee, Person_ID, BorrowedItem_ID)
-                     VALUES (?, 1, ?, ?, ?)`,
+                    `INSERT INTO FeeOwed (date_owed, status, fee_amount, fee_type, Person_ID, BorrowedItem_ID)
+                     VALUES (?, 1, ?, 1, ?, ?)`,
                     [formatDate(today), lateFee, record.Person_ID, borrowedItem_id]
                 );
             }
