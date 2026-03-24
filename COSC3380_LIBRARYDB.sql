@@ -140,3 +140,37 @@ CREATE TABLE IF NOT EXISTS FeePayment (
   FOREIGN KEY (Person_ID) REFERENCES Person(Person_ID),
   FOREIGN KEY (Fine_ID) REFERENCES FeeOwed(Fine_ID)
 );
+
+DELIMITER //
+
+CREATE TRIGGER restrict_borrow_on_fee
+AFTER INSERT ON FeeOwed
+FOR EACH ROW
+BEGIN
+  IF NEW.status = 1 THEN
+    UPDATE Person
+    SET borrow_status = 0
+    WHERE Person_ID = NEW.Person_ID;
+  END IF;
+END //
+
+CREATE TRIGGER unrestrict_borrow_on_payment
+AFTER UPDATE ON FeeOwed
+FOR EACH ROW
+BEGIN
+  DECLARE unpaid_count INT;
+
+  IF NEW.status = 2 AND OLD.status = 1 THEN
+    SELECT COUNT(*) INTO unpaid_count
+    FROM FeeOwed
+    WHERE Person_ID = NEW.Person_ID AND status = 1;
+
+    IF unpaid_count = 0 THEN
+      UPDATE Person
+      SET borrow_status = 1
+      WHERE Person_ID = NEW.Person_ID;
+    END IF;
+  END IF;
+END //
+
+DELIMITER ;
