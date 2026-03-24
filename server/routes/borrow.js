@@ -143,7 +143,7 @@ async function returnItem(req, res) {
 
             // step 1 — look up the borrowed item record, join Copy and Item to get copy_id and item_type
             const [borrowRows] = await db.query(
-                `SELECT bi.BorrowedItem_ID, bi.returnBy_date, bi.Copy_ID, bi.Person_ID, i.Item_type
+                `SELECT bi.BorrowedItem_ID, bi.returnBy_date, bi.Copy_ID, bi.Person_ID, i.Item_type, cp.Copy_status
                  FROM BorrowedItem bi
                  JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
                  JOIN Item i ON cp.Item_ID = i.Item_ID
@@ -161,6 +161,12 @@ async function returnItem(req, res) {
             if (req.user.person_id !== parseInt(record.Person_ID)) {
                 res.writeHead(403);
                 return res.end(JSON.stringify({ error: 'You can only return your own borrowed items' }));
+            }
+
+            // check the item hasn't already been returned
+            if (record.Copy_status === 1) {
+                res.writeHead(400);
+                return res.end(JSON.stringify({ error: 'This item has already been returned' }));
             }
 
             const today = new Date();
