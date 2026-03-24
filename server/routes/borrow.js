@@ -143,7 +143,7 @@ async function returnItem(req, res) {
 
             // step 1 — look up the borrowed item record, join Copy and Item to get copy_id and item_type
             const [borrowRows] = await db.query(
-                `SELECT bi.BorrowedItem_ID, bi.returnBy_date, bi.Copy_ID, bi.Person_ID, i.Item_type
+                `SELECT bi.BorrowedItem_ID, bi.returnBy_date, bi.Copy_ID, bi.Person_ID, i.Item_type, cp.Copy_status
                  FROM BorrowedItem bi
                  JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
                  JOIN Item i ON cp.Item_ID = i.Item_ID
@@ -161,6 +161,12 @@ async function returnItem(req, res) {
             if (req.user.person_id !== parseInt(record.Person_ID)) {
                 res.writeHead(403);
                 return res.end(JSON.stringify({ error: 'You can only return your own borrowed items' }));
+            }
+
+            // check the item hasn't already been returned
+            if (record.Copy_status === 1) {
+                res.writeHead(400);
+                return res.end(JSON.stringify({ error: 'This item has already been returned' }));
             }
 
             const today = new Date();
@@ -186,20 +192,6 @@ async function returnItem(req, res) {
             // step 5 — set copy status back to 1 (available)
             await db.query(`UPDATE Copy SET Copy_status = 1 WHERE Copy_ID = ?`, [record.Copy_ID]);
 
-            // step 6 — if there is a hold at position 0 on this copy, mark it ready for pickup
-            const [nextHold] = await db.query(
-                `SELECT Hold_ID FROM HoldItem WHERE Copy_ID = ? AND hold_status = 1 AND queue_status = 0`,
-                [record.Copy_ID]
-            );
-            if (nextHold.length > 0) {
-                const expiry = new Date();
-                expiry.setDate(expiry.getDate() + 2);
-                const expiryDate = expiry.toISOString().split('T')[0];
-                await db.query(
-                    `UPDATE HoldItem SET hold_status = 2, expiry_date = ? WHERE Hold_ID = ?`,
-                    [expiryDate, nextHold[0].Hold_ID]
-                );
-            }
 
             res.writeHead(200);
             res.end(JSON.stringify({

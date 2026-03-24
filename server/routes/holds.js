@@ -207,19 +207,6 @@ async function cancelHold(req, res) {
             [hold.Copy_ID, hold.queue_status]
         );
 
-        // if the copy is available and there is now a hold at position 0, mark it ready
-        const [copyRows] = await db.query(`SELECT Copy_status FROM Copy WHERE Copy_ID = ?`, [hold.Copy_ID]);
-        if (copyRows[0].Copy_status === 1) {
-            const expiry = new Date();
-            expiry.setDate(expiry.getDate() + 2);
-            const expiryDate = expiry.toISOString().split('T')[0];
-
-            await db.query(
-                `UPDATE HoldItem SET hold_status = 2, expiry_date = ?
-                 WHERE Copy_ID = ? AND hold_status = 1 AND queue_status = 0`,
-                [expiryDate, hold.Copy_ID]
-            );
-        }
 
         res.writeHead(200);
         res.end(JSON.stringify({ message: 'Hold cancelled successfully' }));
