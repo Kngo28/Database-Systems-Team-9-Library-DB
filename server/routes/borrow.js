@@ -163,6 +163,12 @@ async function returnItem(req, res) {
                 return res.end(JSON.stringify({ error: 'You can only return your own borrowed items' }));
             }
 
+            // damaged and lost are mutually exclusive
+            if (damaged && lost) {
+                res.writeHead(400);
+                return res.end(JSON.stringify({ error: 'Item cannot be both damaged and lost' }));
+            }
+
             // check the item hasn't already been returned (1 = available, 3 = lost, 4 = damaged)
             if (record.Copy_status !== 2) {
                 res.writeHead(400);
@@ -173,8 +179,8 @@ async function returnItem(req, res) {
             const returnByDate = new Date(record.returnBy_date);
             const formatDate = (d) => d.toISOString().split('T')[0];
 
-            // step 2 — check if return is late
-            const isLate = today > returnByDate;
+            // step 2 — check if return is late (late fee does not apply to lost items)
+            const isLate = !lost && today > returnByDate;
 
             if (isLate) {
                 // step 3 — determine flat fee based on item type. 1 = book $5, 2 = CD $10, 3 = device $20
