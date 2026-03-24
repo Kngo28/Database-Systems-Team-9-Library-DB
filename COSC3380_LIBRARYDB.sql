@@ -173,4 +173,18 @@ BEGIN
   END IF;
 END //
 
+CREATE TRIGGER promote_next_hold
+AFTER UPDATE ON Copy
+FOR EACH ROW
+BEGIN
+  IF NEW.Copy_status = 1 AND OLD.Copy_status <> 1 THEN
+    UPDATE HoldItem
+    SET hold_status = 2,
+        expiry_date = DATE_ADD(CURDATE(), INTERVAL 2 DAY)
+    WHERE Copy_ID = NEW.Copy_ID
+      AND hold_status = 1
+      AND queue_status = 0;
+  END IF;
+END //
+
 DELIMITER ;
