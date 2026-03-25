@@ -70,12 +70,6 @@ const adminToolCards = [
     path: "/manage-items",
   },
   {
-    title: "Manage Fees",
-    description: "View and process patron fees.",
-    icon: feeIcon,
-    path: "/fees",
-  },
-  {
     title: "Manage Staff",
     description: "Register and manage staff accounts.",
     icon: staffIcon,

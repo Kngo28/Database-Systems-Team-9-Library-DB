@@ -67,12 +67,6 @@ const staffToolCards = [
     icon: itemIcon,
     path: "/manage-items",
   },
-  {
-    title: "Manage Fees",
-    description: "View and process patron fees.",
-    icon: feeIcon,
-    path: "/fees",
-  },
 ];
 
 export default function StaffPage() {
