@@ -15,6 +15,7 @@ import ReturnsBorrowsPage from "./pages/ReturnsBorrowsPage";
 import HoldsPage from "./pages/HoldsPage";
 import ViewAccountPage from "./pages/ViewAccountPage";
 import RentARoomPage from "./pages/RentARoomPage";
+import RentADevicePage from "./pages/RentADevicePage";
 
 export default function App() {
   return (
@@ -36,6 +37,7 @@ export default function App() {
       <Route path="/holds" element={<HoldsPage />} />
       <Route path="/view-account" element={<ViewAccountPage />} />
       <Route path="/rent-a-room" element={<RentARoomPage />} />
+      <Route path="/rent-a-device" element={<RentADevicePage />} />
     </Routes>
   );
 }
