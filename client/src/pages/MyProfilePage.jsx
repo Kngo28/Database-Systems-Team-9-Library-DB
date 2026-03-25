@@ -11,6 +11,7 @@ export default function MyProfilePage() {
 
   const token = sessionStorage.getItem("token");
   const personId = sessionStorage.getItem("personId");
+  const isStaff = sessionStorage.getItem("userType") === "staff";
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -50,7 +51,7 @@ export default function MyProfilePage() {
 
       <div className="max-w-3xl mx-auto px-6 py-10">
         <button
-          onClick={() => navigate("/view-account")}
+          onClick={() => navigate(isStaff ? "/staff" : "/view-account")}
           className="text-sm text-green-900 font-semibold hover:underline mb-6 inline-block"
         >
           ← Back
