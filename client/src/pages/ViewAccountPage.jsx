@@ -7,7 +7,7 @@ import profileIcon from "../assets/user.png";
 
 export default function ViewAccountPage() {
   const navigate = useNavigate();
-
+  
   const accountCards = [
     {
       title: "My Holds",
@@ -25,11 +25,13 @@ export default function ViewAccountPage() {
       title: "Pay Fees",
       description: "View and pay any outstanding fees on your account.",
       icon: feesIcon,
+      path: "/fees"
     },
     {
       title: "Personal Information",
       description: "View and update your personal account information.",
       icon: profileIcon,
+      path: "/rent-a-room"
     },
   ];
 
