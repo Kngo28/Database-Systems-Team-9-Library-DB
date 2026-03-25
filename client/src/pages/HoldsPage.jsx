@@ -1,6 +1,7 @@
 import { useState } from "react";
 import NavigationBar from "../components/NavigationBar";
 
+
 export default function HoldsPage() {
   const [holdId, setHoldId] = useState("");
   const [queueStatus, setQueueStatus] = useState("");
