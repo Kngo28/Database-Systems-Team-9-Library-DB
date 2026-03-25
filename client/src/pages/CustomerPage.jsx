@@ -8,12 +8,16 @@ import deviceIcon from "../assets/device.png";
 
 export default function CustomerPage() {
   const navigate = useNavigate();
+  const isStaff = sessionStorage.getItem("userType") === "staff";
 
   const [category, setCategory] = useState("All");
   const [query, setQuery] = useState("");
 
   const handleSearch = () => {
-    console.log("Searching:", category, query);
+    const params = new URLSearchParams();
+    if (query.trim()) params.set("search", query.trim());
+    if (category !== "All") params.set("type", category === "Books" ? "1" : "2");
+    navigate(`/catalog?${params.toString()}`);
   };
 
   const customerCards = [
@@ -33,7 +37,7 @@ export default function CustomerPage() {
       title: "View My Account",
       description: "Manage your borrowed items and holds.",
       icon: userIcon,
-      path: "/view-account"
+      path: isStaff ? "/staff" : "/view-account"
     },
   ];
 
