@@ -259,7 +259,7 @@ async function getBorrowedItems(req, res) {
             return res.end(JSON.stringify({ error: 'Person not found' }));
         }
 
-        // get all borrowed items for this person — join Item so we can return the item name and type
+        // get the most recent borrow record per copy for this person
         const [rows] = await db.query(
             `SELECT
                 bi.BorrowedItem_ID, bi.borrow_date, bi.returnBy_date,
@@ -269,6 +269,11 @@ async function getBorrowedItems(req, res) {
              JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
              JOIN Item i ON cp.Item_ID = i.Item_ID
              WHERE bi.Person_ID = ?
+               AND bi.BorrowedItem_ID = (
+                 SELECT MAX(bi2.BorrowedItem_ID)
+                 FROM BorrowedItem bi2
+                 WHERE bi2.Copy_ID = bi.Copy_ID AND bi2.Person_ID = bi.Person_ID
+               )
              ORDER BY bi.borrow_date DESC`,
             [personId]
         );
