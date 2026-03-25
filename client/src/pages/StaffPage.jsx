@@ -4,6 +4,7 @@ import NavigationBar from "../components/NavigationBar";
 import userIcon from "../assets/user.png";
 import feeIcon from "../assets/fee.png";
 import borrowIcon from "../assets/borrow.png";
+import catalogueIcon from "../assets/catalogue.png";
 import holdIcon from "../assets/hold.png";
 import itemIcon from "../assets/item.png";
 import roomIcon from "../assets/room.png";
@@ -13,7 +14,7 @@ const myAccountCards = [
   {
     title: "Catalog",
     description: "Browse and borrow library items.",
-    icon: borrowIcon,
+    icon: catalogueIcon,
     path: "/customer",
   },
   {
