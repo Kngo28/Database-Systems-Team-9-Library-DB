@@ -9,19 +9,13 @@ import holdIcon from "../assets/hold.png";
 import itemIcon from "../assets/item.png";
 import roomIcon from "../assets/room.png";
 import deviceIcon from "../assets/device.png";
-import catalogIcon from "../assets/catalog.png";
 
 const myAccountCards = [
   {
     title: "Catalog",
     description: "Browse and borrow library items.",
-<<<<<<< HEAD
-    icon: catalogIcon,
-    path: "/catalog",
-=======
     icon: catalogueIcon,
     path: "/customer",
->>>>>>> origin/main
   },
   {
     title: "Rent a Device",
