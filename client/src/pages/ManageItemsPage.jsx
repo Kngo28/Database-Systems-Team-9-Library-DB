@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import NavigationBar from "../components/NavigationBar";
+import { apiFetch } from "../api";
 
 export default function ManageItemsPage() {
   const navigate = useNavigate();
@@ -35,6 +36,7 @@ export default function ManageItemsPage() {
 
   const [removeForm, setRemoveForm] = useState({
     itemId: "",
+    copyId: "",
     reason: "",
   });
 
@@ -84,7 +86,7 @@ export default function ManageItemsPage() {
         num_copies: Number(bookForm.num_copies),
     };
     console.log("Sending payload:", payload);
-      const response = await fetch("http://localhost:3000/api/items", {
+      const response = await apiFetch("/api/items",  {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -127,7 +129,7 @@ export default function ManageItemsPage() {
         rating: cdForm.rating ? parseInt(cdForm.rating, 10) : null,
         num_copies: Number(cdForm.num_copies),
       };
-      const response = await fetch("http://localhost:3000/api/items", {
+      const response = await apiFetch("/api/items", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -149,6 +151,7 @@ export default function ManageItemsPage() {
         cd_type: "",
         rating: "",
         release_date: "",
+        genre: "",
         num_copies: 1,
       });
     } catch (error) {
@@ -166,7 +169,7 @@ export default function ManageItemsPage() {
         item_type: 3,
         device_type: deviceForm.deviceType ? parseInt(deviceForm.deviceType, 10) : null,
     };
-    const response = await fetch("http://localhost:3000/api/items", {
+    const response = await apiFetch("/api/items", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -193,9 +196,37 @@ export default function ManageItemsPage() {
     }
   };
 
-  const handleRemoveItem = (e) => {
+  const handleRemoveItem = async (e) => {
     e.preventDefault();
-    alert("Remove item is not wired to the backend yet.");
+    try {
+      const token = sessionStorage.getItem("token");
+      const response = await apiFetch(`/api/items/${removeForm.itemId}/copies/${removeForm.copyId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || data.message || "Failed to remove item");
+      }
+
+      alert("Item copy has beenremoved successfully.");
+
+      setRemoveForm({
+        itemId: "",
+        copyId: "",
+        reason: "",
+      });
+    } catch (error) {
+      console.error("Error removing copy:", error);
+      alert(error.message || "Error removing copy.");
+    }
   };
 
   return (
@@ -605,6 +636,22 @@ export default function ManageItemsPage() {
                   required
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Copy ID <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="copyId"
+                  value={removeForm.copyId}
+                  onChange={handleRemoveChange}
+                  placeholder="Enter copy ID"
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3"
+                  required
+                />
+              </div>
+
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
