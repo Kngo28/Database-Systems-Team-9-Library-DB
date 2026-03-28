@@ -1,4 +1,5 @@
 const db = require('../db');
+const ITEM_FEE_POLICY = require('../config/itemFeePolicy');
 
 async function borrowItem(req, res) {
     let body = '';
@@ -221,8 +222,7 @@ async function returnItem(req, res) {
 
             if (isLate) {
                 // step 3 — determine flat fee based on item type. 1 = book $5, 2 = CD $10, 3 = device $20
-                const feeMap = { 1: 5.00, 2: 10.00, 3: 20.00 };
-                const lateFee = feeMap[record.Item_type] || 5.00;
+                const lateFee = ITEM_FEE_POLICY[record.Item_type]?.late || 5.0;
 
                 // step 4 — insert a FeeOwed record. status 1 = unpaid, fee_type 1 = late
                 await db.query(
@@ -234,8 +234,7 @@ async function returnItem(req, res) {
 
             // step 4b — issue damage fee if item is returned damaged. fee_type 2 = damage
             if (damaged) {
-                const damageFeeMap = { 1: 25.00, 2: 15.00, 3: 50.00 };
-                const damageFee = damageFeeMap[record.Item_type] || 25.00;
+                const damageFee = ITEM_FEE_POLICY[record.Item_type]?.damage || 25.0;
                 await db.query(
                     `INSERT INTO FeeOwed (date_owed, status, fee_amount, fee_type, Person_ID, BorrowedItem_ID)
                      VALUES (?, 1, ?, 2, ?, ?)`,
@@ -245,8 +244,7 @@ async function returnItem(req, res) {
 
             // step 4c — issue loss fee if item is lost. fee_type 3 = loss
             if (lost) {
-                const lossFeeMap = { 1: 30.00, 2: 20.00, 3: 100.00 };
-                const lossFee = lossFeeMap[record.Item_type] || 30.00;
+                const lossFee = ITEM_FEE_POLICY[record.Item_type]?.loss || 30.0;
                 await db.query(
                     `INSERT INTO FeeOwed (date_owed, status, fee_amount, fee_type, Person_ID, BorrowedItem_ID)
                      VALUES (?, 1, ?, 3, ?, ?)`,
