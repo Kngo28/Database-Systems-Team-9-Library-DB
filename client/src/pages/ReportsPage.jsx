@@ -1,57 +1,71 @@
 import { Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import NavigationBar from "../components/NavigationBar";
 import { apiFetch } from "../api";
 import { getSessionRoleState } from "../auth";
 
 const REPORT_META = {
   popularity: {
-    title: "Popularity Report",
     description:
       "Identify high-demand titles, inventory pressure, and items that may need more copies.",
     endpoint: "/api/reports/popularity",
     defaultSort: "times_checked_out",
   },
   fees: {
-    title: "Unpaid Fees Report",
     description:
       "Spot high-risk accounts by balance, fee count, and how long unpaid debt has been sitting.",
     endpoint: "/api/reports/fees",
     defaultSort: "unpaid_total",
   },
   patrons: {
-    title: "Patron Activity Report",
     description:
       "Measure engagement, recency, and account risk across your patron base.",
     endpoint: "/api/reports/patrons",
-    defaultSort: "recent_borrows",
+    defaultSort: "borrow_count",
   },
 };
 
-const SORT_OPTIONS = {
-  popularity: [
-    { label: "Total Checkouts", value: "times_checked_out" },
-    { label: "Active Holds", value: "active_holds" },
-    { label: "Demand Ratio", value: "demand_ratio" },
-    { label: "Borrowing Rate", value: "borrowing_rate" },
-    { label: "Utilization %", value: "utilization_rate" },
-  ],
-  fees: [
-    { label: "Total Owed", value: "unpaid_total" },
-    { label: "Fee Count", value: "unpaid_fee_count" },
-    { label: "Overdue Items", value: "overdue_item_count" },
-    { label: "Average Fee", value: "avg_fee_amount" },
-    { label: "Oldest Debt Age", value: "max_days_outstanding" },
-  ],
-  patrons: [
-    { label: "Recent Borrows (90d)", value: "recent_borrows" },
-    { label: "Borrow Rate", value: "lifetime_borrow_rate" },
-    { label: "Lifetime Borrows", value: "lifetime_borrows" },
-    { label: "Unique Titles", value: "unique_titles_borrowed" },
-    { label: "Active Holds", value: "active_holds" },
-    { label: "Unpaid Total", value: "unpaid_total" },
-  ],
-};
+const REPORT_OPTIONS = [
+  { label: "Popularity", value: "popularity" },
+  { label: "Unpaid Fees", value: "fees" },
+  { label: "Patron Activity", value: "patrons" },
+];
+
+const CURRENT_YEAR = new Date().getFullYear();
+
+const PERIOD_TYPE_OPTIONS = [
+  { label: "Month", value: "month" },
+  { label: "Quarter", value: "quarter" },
+  { label: "Year", value: "year" },
+  { label: "All Time", value: "all" },
+];
+
+const MONTH_OPTIONS = [
+  { label: "January", value: "1" },
+  { label: "February", value: "2" },
+  { label: "March", value: "3" },
+  { label: "April", value: "4" },
+  { label: "May", value: "5" },
+  { label: "June", value: "6" },
+  { label: "July", value: "7" },
+  { label: "August", value: "8" },
+  { label: "September", value: "9" },
+  { label: "October", value: "10" },
+  { label: "November", value: "11" },
+  { label: "December", value: "12" },
+];
+
+const QUARTER_OPTIONS = [
+  { label: "Quarter 1 (Jan-Mar)", value: "1" },
+  { label: "Quarter 2 (Apr-Jun)", value: "2" },
+  { label: "Quarter 3 (Jul-Sep)", value: "3" },
+  { label: "Quarter 4 (Oct-Dec)", value: "4" },
+];
+
+const YEAR_OPTIONS = Array.from({ length: 6 }, (_, index) => {
+  const year = CURRENT_YEAR - index;
+  return { label: String(year), value: String(year) };
+});
 
 const ROLE_OPTIONS = [
   { label: "All", value: "All" },
@@ -66,6 +80,8 @@ const ITEM_TYPE_OPTIONS = [
   { label: "Devices", value: "3" },
 ];
 
+const DEFAULT_PERIOD_TYPE = "quarter";
+
 function createInitialSortState() {
   return {
     popularity: REPORT_META.popularity.defaultSort,
@@ -74,26 +90,31 @@ function createInitialSortState() {
   };
 }
 
+function createInitialSortDirectionState() {
+  return {
+    popularity: "desc",
+    fees: "desc",
+    patrons: "desc",
+  };
+}
+
 function createInitialFilterState() {
   return {
     popularity: {
       itemType: "All",
-      genre: "",
-      from: "",
-      to: "",
-      minCheckouts: "",
-      minHolds: "",
+      ...createDefaultPeriodFilters(),
     },
     fees: {
+      ...createDefaultPeriodFilters(),
       role: "All",
       minTotal: "",
       minFeeCount: "",
       minDaysOutstanding: "",
     },
     patrons: {
+      ...createDefaultPeriodFilters(),
       role: "All",
       minBorrows: "",
-      activeWithinDays: "",
       withUnpaidOnly: false,
     },
   };
@@ -105,6 +126,9 @@ export default function ReportsPage() {
 
   const [reportType, setReportType] = useState("popularity");
   const [sortByReport, setSortByReport] = useState(createInitialSortState);
+  const [sortDirectionByReport, setSortDirectionByReport] = useState(
+    createInitialSortDirectionState
+  );
   const [filtersByReport, setFiltersByReport] = useState(createInitialFilterState);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -112,7 +136,12 @@ export default function ReportsPage() {
 
   const reportMeta = REPORT_META[reportType];
   const currentSort = sortByReport[reportType];
+  const currentSortDirection = sortDirectionByReport[reportType];
   const currentFilters = filtersByReport[reportType];
+  const reportPeriodLabel = getPeriodSelectionLabel(
+    currentFilters.periodType,
+    currentFilters.periodValue
+  );
 
   useEffect(() => {
     if (!token) {
@@ -126,7 +155,12 @@ export default function ReportsPage() {
         setLoading(true);
         setError("");
 
-        const params = buildReportParams(reportType, currentSort, currentFilters);
+        const params = buildReportParams(
+          reportType,
+          currentSort,
+          currentSortDirection,
+          currentFilters
+        );
         const query = params.toString();
         const url = `${reportMeta.endpoint}${query ? `?${query}` : ""}`;
 
@@ -153,7 +187,14 @@ export default function ReportsPage() {
     }
 
     fetchReport();
-  }, [token, reportType, currentSort, currentFilters, reportMeta.endpoint]);
+  }, [
+    token,
+    reportType,
+    currentSort,
+    currentSortDirection,
+    currentFilters,
+    reportMeta.endpoint,
+  ]);
 
   if (!isAdmin) {
     return <Navigate to="/login" replace />;
@@ -166,7 +207,37 @@ export default function ReportsPage() {
     }));
   }
 
+  function updateCurrentSortDirection(value) {
+    setSortDirectionByReport((prev) => ({
+      ...prev,
+      [reportType]: value,
+    }));
+  }
+
+  function handleColumnSort(columnKey) {
+    const nextDirection =
+      currentSort === columnKey && currentSortDirection === "desc" ? "asc" : "desc";
+
+    updateCurrentSort(columnKey);
+    updateCurrentSortDirection(nextDirection);
+  }
+
   function updateCurrentFilter(key, value) {
+    if (key === "periodType") {
+      setFiltersByReport((prev) => ({
+        ...prev,
+        [reportType]: {
+          ...prev[reportType],
+          periodType: value,
+          periodValue:
+            prev[reportType].periodType === value
+              ? prev[reportType].periodValue
+              : getDefaultPeriodValue(value),
+        },
+      }));
+      return;
+    }
+
     setFiltersByReport((prev) => ({
       ...prev,
       [reportType]: {
@@ -184,30 +255,28 @@ export default function ReportsPage() {
         <h1 className="text-3xl font-bold text-green-900 mb-2">Reports</h1>
         <p className="text-gray-600 mb-6">{reportMeta.description}</p>
 
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6 flex flex-wrap gap-4">
-          <SelectControl
-            label="Report"
-            value={reportType}
-            onChange={setReportType}
-            options={[
-              { label: "Popularity", value: "popularity" },
-              { label: "Unpaid Fees", value: "fees" },
-              { label: "Patron Activity", value: "patrons" },
-            ]}
-          />
+        <div className="bg-white rounded-xl border border-gray-200 shadow-md p-4 mb-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <SelectControl
+              label="Report"
+              value={reportType}
+              onChange={setReportType}
+              options={REPORT_OPTIONS}
+            />
 
-          <SelectControl
-            label="Sort"
-            value={currentSort}
-            onChange={updateCurrentSort}
-            options={SORT_OPTIONS[reportType]}
-          />
+            <PeriodPickerControl
+              periodType={currentFilters.periodType}
+              periodValue={currentFilters.periodValue}
+              onPeriodTypeChange={(value) => updateCurrentFilter("periodType", value)}
+              onPeriodValueChange={(value) => updateCurrentFilter("periodValue", value)}
+            />
 
-          <ReportFilters
-            reportType={reportType}
-            filters={currentFilters}
-            onChange={updateCurrentFilter}
-          />
+            <ReportFilters
+              reportType={reportType}
+              filters={currentFilters}
+              onChange={updateCurrentFilter}
+            />
+          </div>
         </div>
 
         {loading && <InfoBox text="Loading..." />}
@@ -215,37 +284,36 @@ export default function ReportsPage() {
         {!loading && !error && data.length === 0 && <InfoBox text="No data found." />}
 
         {!loading && !error && data.length > 0 && (
-          <div className="space-y-4">
-            {data.map((item, index) => (
-              <ReportRow
-                key={item.Item_ID || item.Person_ID || index}
-                reportType={reportType}
-                sort={currentSort}
-                item={item}
-              />
-            ))}
-          </div>
+          <ReportTable
+            reportType={reportType}
+            sort={currentSort}
+            sortDirection={currentSortDirection}
+            data={data}
+            periodLabel={reportPeriodLabel}
+            onSortChange={handleColumnSort}
+          />
         )}
       </div>
     </div>
   );
 }
 
-function buildReportParams(reportType, sort, filters) {
+function buildReportParams(reportType, sort, sortDirection, filters) {
   const params = new URLSearchParams();
 
   if (sort) {
     params.set("sort", sort);
   }
 
+  if (sortDirection) {
+    params.set("direction", sortDirection);
+  }
+
+  appendPeriodParams(params, filters);
+
   switch (reportType) {
     case "popularity":
       if (filters.itemType !== "All") params.set("type", filters.itemType);
-      if (filters.genre.trim()) params.set("genre", filters.genre.trim());
-      if (filters.from) params.set("from", filters.from);
-      if (filters.to) params.set("to", filters.to);
-      if (filters.minCheckouts !== "") params.set("minCheckouts", filters.minCheckouts);
-      if (filters.minHolds !== "") params.set("minHolds", filters.minHolds);
       break;
     case "fees":
       if (filters.role !== "All") params.set("role", filters.role);
@@ -258,9 +326,6 @@ function buildReportParams(reportType, sort, filters) {
     case "patrons":
       if (filters.role !== "All") params.set("role", filters.role);
       if (filters.minBorrows !== "") params.set("minBorrows", filters.minBorrows);
-      if (filters.activeWithinDays !== "") {
-        params.set("activeWithinDays", filters.activeWithinDays);
-      }
       if (filters.withUnpaidOnly) params.set("withUnpaidOnly", "true");
       break;
     default:
@@ -274,46 +339,12 @@ function ReportFilters({ reportType, filters, onChange }) {
   switch (reportType) {
     case "popularity":
       return (
-        <>
-          <SelectControl
-            label="Type"
-            value={filters.itemType}
-            onChange={(value) => onChange("itemType", value)}
-            options={ITEM_TYPE_OPTIONS}
-          />
-          <InputControl
-            label="Genre"
-            value={filters.genre}
-            onChange={(value) => onChange("genre", value)}
-            placeholder="e.g. Fiction"
-          />
-          <InputControl
-            label="Borrowed From"
-            type="date"
-            value={filters.from}
-            onChange={(value) => onChange("from", value)}
-          />
-          <InputControl
-            label="Borrowed To"
-            type="date"
-            value={filters.to}
-            onChange={(value) => onChange("to", value)}
-          />
-          <InputControl
-            label="Min Checkouts"
-            type="number"
-            min={0}
-            value={filters.minCheckouts}
-            onChange={(value) => onChange("minCheckouts", value)}
-          />
-          <InputControl
-            label="Min Active Holds"
-            type="number"
-            min={0}
-            value={filters.minHolds}
-            onChange={(value) => onChange("minHolds", value)}
-          />
-        </>
+        <SelectControl
+          label="Item Type"
+          value={filters.itemType}
+          onChange={(value) => onChange("itemType", value)}
+          options={ITEM_TYPE_OPTIONS}
+        />
       );
     case "fees":
       return (
@@ -358,18 +389,11 @@ function ReportFilters({ reportType, filters, onChange }) {
             options={ROLE_OPTIONS}
           />
           <InputControl
-            label="Min Lifetime Borrows"
+            label="Min Borrows in Period"
             type="number"
             min={0}
             value={filters.minBorrows}
             onChange={(value) => onChange("minBorrows", value)}
-          />
-          <InputControl
-            label="Borrowed Within (Days)"
-            type="number"
-            min={0}
-            value={filters.activeWithinDays}
-            onChange={(value) => onChange("activeWithinDays", value)}
           />
           <CheckboxControl
             label="Only Show Accounts With Debt"
@@ -390,7 +414,7 @@ function SelectControl({ label, value, onChange, options }) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="border border-gray-300 rounded px-3 py-2"
+        className="w-full border border-gray-300 rounded px-3 py-2 bg-white"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -410,16 +434,186 @@ function InputControl({ label, value, onChange, type = "text", ...rest }) {
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="border border-gray-300 rounded px-3 py-2"
+        className="w-full border border-gray-300 rounded px-3 py-2 bg-white"
         {...rest}
       />
     </div>
   );
 }
 
+function PeriodPickerControl({
+  periodType,
+  periodValue,
+  onPeriodTypeChange,
+  onPeriodValueChange,
+}) {
+  const controlRef = useRef(null);
+  const [activePanel, setActivePanel] = useState(null);
+
+  useEffect(() => {
+    function handleOutsideClick(event) {
+      if (!controlRef.current?.contains(event.target)) {
+        setActivePanel(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, []);
+
+  function handleTypeSelect(nextType) {
+    onPeriodTypeChange(nextType);
+
+    if (nextType === "all") {
+      setActivePanel(null);
+      return;
+    }
+
+    setActivePanel("value");
+  }
+
+  function handleValueSelect(nextValue) {
+    onPeriodValueChange(nextValue);
+    setActivePanel(null);
+  }
+
+  return (
+    <div ref={controlRef} className="relative xl:col-span-2">
+      <label className="block text-sm text-gray-600 mb-1">Time Period</label>
+      <button
+        type="button"
+        onClick={() => setActivePanel((prev) => (prev ? null : "type"))}
+        className="flex w-full items-center justify-between rounded border border-gray-300 bg-white px-3 py-2 text-left"
+      >
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-gray-900">
+            {getPeriodTriggerLabel(periodType, periodValue)}
+          </div>
+          <div className="text-xs text-gray-500">
+            {getPeriodPromptLabel(periodType)}
+          </div>
+        </div>
+        <span className="ml-3 text-xs text-gray-500">{activePanel ? "Close" : "Choose"}</span>
+      </button>
+
+      {activePanel === "type" && (
+        <div className="absolute left-0 right-0 z-20 mt-2 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+          <div className="grid grid-cols-2 gap-2">
+            {PERIOD_TYPE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleTypeSelect(option.value)}
+                className={`rounded-md border px-3 py-2 text-left text-sm ${
+                  periodType === option.value
+                    ? "border-green-300 bg-green-50 text-green-900"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activePanel === "value" && periodType !== "all" && (
+        <div className="absolute left-0 right-0 z-20 mt-2 rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
+          {periodType === "month" && (
+            <MonthPickerPanel periodValue={periodValue} onSelect={handleValueSelect} />
+          )}
+          {periodType === "quarter" && (
+            <QuarterPickerPanel periodValue={periodValue} onSelect={handleValueSelect} />
+          )}
+          {periodType === "year" && (
+            <YearPickerPanel periodValue={periodValue} onSelect={handleValueSelect} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MonthPickerPanel({ periodValue, onSelect }) {
+  return (
+    <div>
+      <div className="mb-3 text-center text-sm font-semibold text-gray-700">
+        {CURRENT_YEAR}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {MONTH_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onSelect(option.value)}
+            className={`rounded-md px-3 py-2 text-sm ${
+              periodValue === option.value
+                ? "bg-green-700 text-white"
+                : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            {option.label.slice(0, 3)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function QuarterPickerPanel({ periodValue, onSelect }) {
+  return (
+    <div>
+      <div className="mb-3 text-center text-sm font-semibold text-gray-700">
+        {CURRENT_YEAR}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {QUARTER_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onSelect(option.value)}
+            className={`rounded-md border px-3 py-3 text-left text-sm ${
+              periodValue === option.value
+                ? "border-green-300 bg-green-50 text-green-900"
+                : "border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <div className="font-semibold">Q{option.value}</div>
+            <div className="mt-1 text-xs text-gray-500">{getQuarterSubtitle(option.label)}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function YearPickerPanel({ periodValue, onSelect }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {YEAR_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onSelect(option.value)}
+          className={`rounded-md px-3 py-2 text-sm ${
+            periodValue === option.value
+              ? "bg-green-700 text-white"
+              : "bg-gray-50 text-gray-700 hover:bg-gray-100"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function CheckboxControl({ label, checked, onChange }) {
   return (
-    <label className="flex items-center gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 mt-6">
+    <label className="flex h-full min-h-[42px] items-center gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 xl:self-end">
       <input
         type="checkbox"
         checked={checked}
@@ -442,172 +636,500 @@ function InfoBox({ text, error = false }) {
   );
 }
 
-function ReportRow({ reportType, item, sort }) {
-  if (reportType === "fees") {
-    return <FeeRow item={item} sort={sort} />;
-  }
+function ReportTable({
+  reportType,
+  sort,
+  sortDirection,
+  data,
+  periodLabel = "All Time",
+  onSortChange,
+}) {
+  const columns = getReportColumns(reportType, periodLabel);
+  const {
+    topScrollRef,
+    bottomScrollRef,
+    topSpacerRef,
+    handleTopScroll,
+    handleBottomScroll,
+  } = useSyncedHorizontalScroll([reportType, data.length]);
 
-  if (reportType === "patrons") {
-    return <PatronRow item={item} sort={sort} />;
-  }
-
-  return <PopularityRow item={item} sort={sort} />;
-}
-
-function RowShell({ title, subtitle, featured, fields }) {
   return (
-    <div className="bg-white rounded-xl shadow-md px-4 py-4">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
-        <div className="min-w-0 xl:w-64 xl:shrink-0">
-          <h3 className="text-lg font-semibold text-green-900 break-words">{title}</h3>
-          {subtitle && <p className="text-sm text-gray-500 mt-1 break-words">{subtitle}</p>}
-        </div>
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
+      <div
+        ref={topScrollRef}
+        onScroll={handleTopScroll}
+        className="overflow-x-auto border-b border-gray-200 bg-gray-50"
+      >
+        <div ref={topSpacerRef} className="h-4" />
+      </div>
+      <div
+        ref={bottomScrollRef}
+        onScroll={handleBottomScroll}
+        className="overflow-x-auto"
+      >
+        <table className="min-w-full border-collapse text-sm">
+          <thead className="bg-gray-100">
+            <tr>
+              {columns.map((column) => {
+                const isSortedColumn = column.key === sort;
 
-        {featured && (
-          <div className="shrink-0 rounded-lg border border-yellow-300 bg-yellow-100 px-3 py-2 min-w-[180px]">
-            <p className="text-[11px] uppercase tracking-wide text-gray-600">Sorted By</p>
-            <p className="text-sm font-bold text-gray-900">{featured.label}</p>
-            <p className="text-lg font-bold text-green-900 break-words">{featured.value}</p>
-          </div>
-        )}
-
-        <div className="grid min-w-0 flex-1 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
-          {fields.map((field) => (
-            <div
-              key={field.key}
-              className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700"
-            >
-              <p className="text-xs uppercase tracking-wide text-gray-500">{field.label}</p>
-              <p className="font-semibold break-words">{field.value}</p>
-            </div>
-          ))}
-        </div>
+                return (
+                  <th
+                    key={column.key}
+                    className={`border border-gray-200 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${
+                      isSortedColumn ? "bg-green-100 text-green-900" : "text-gray-600"
+                    }`}
+                  >
+                    {column.sortable === false ? (
+                      column.label
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onSortChange(column.key)}
+                        className="flex w-full items-start justify-between gap-2 text-left"
+                      >
+                        <span>{column.label}</span>
+                        <span
+                          className={`mt-0.5 text-sm ${
+                            isSortedColumn ? "text-green-900" : "text-gray-400"
+                          }`}
+                        >
+                          {getSortIndicator(isSortedColumn, sortDirection)}
+                        </span>
+                      </button>
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row, index) => (
+              <tr
+                key={getRowKey(reportType, row, index)}
+                className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+              >
+                {columns.map((column) => (
+                  <td
+                    key={column.key}
+                    className={`border border-gray-200 px-3 py-2 align-top ${
+                      column.key === sort ? "bg-green-50" : ""
+                    }`}
+                  >
+                    {column.render(row)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
-function getFeaturedField(fields, sort) {
-  return fields.find((field) => field.key === sort) || null;
+function getReportColumns(reportType, periodLabel) {
+  switch (reportType) {
+    case "fees":
+      return getFeeColumns(periodLabel);
+    case "patrons":
+      return getPatronColumns(periodLabel);
+    default:
+      return getPopularityColumns(periodLabel);
+  }
 }
 
-function getOtherFields(fields, sort) {
-  return fields.filter((field) => field.key !== sort);
-}
-
-function PopularityRow({ item, sort }) {
-  const fields = [
-    { key: "times_checked_out", label: "Checkouts", value: formatNumber(item.times_checked_out) },
-    { key: "active_holds", label: "Active Holds", value: formatNumber(item.active_holds) },
-    { key: "demand_ratio", label: "Demand Ratio", value: formatDecimal(item.demand_ratio) },
-    { key: "borrowing_rate", label: "Borrowing Rate", value: formatDecimal(item.borrowing_rate) },
-    { key: "utilization_rate", label: "Utilization", value: formatPercent(item.utilization_rate) },
-    { key: "unique_borrowers", label: "Unique Borrowers", value: formatNumber(item.unique_borrowers) },
-    { key: "genre", label: "Genre", value: item.genre || "N/A" },
-    { key: "num_copies", label: "Copies", value: formatNumber(item.num_copies) },
-    { key: "available_copies", label: "Available", value: formatNumber(item.available_copies) },
-    { key: "last_borrow_date", label: "Last Borrowed", value: formatDate(item.last_borrow_date) },
+function getPopularityColumns(periodLabel) {
+  return [
+    {
+      key: "item_name",
+      label: "Item",
+      sortable: false,
+      render: (item) => renderPopularityIdentityCell(item),
+    },
+    {
+      key: "times_checked_out",
+      label: `Checkouts (${periodLabel})`,
+      render: (item) => formatNumber(item.times_checked_out),
+    },
+    {
+      key: "borrowing_rate",
+      label: `Borrow Rate (${periodLabel})`,
+      render: (item) => formatDecimal(item.borrowing_rate),
+    },
+    {
+      key: "utilization_rate",
+      label: `Utilization (${periodLabel})`,
+      render: (item) => formatPercent(item.utilization_rate),
+    },
+    {
+      key: "demand_ratio",
+      label: `Demand Ratio (${periodLabel})`,
+      render: (item) => formatDecimal(item.demand_ratio),
+    },
+    {
+      key: "active_holds",
+      label: `Holds (${periodLabel})`,
+      render: (item) => formatNumber(item.active_holds),
+    },
+    {
+      key: "unique_borrowers",
+      label: `Unique Borrowers (${periodLabel})`,
+      render: (item) => formatNumber(item.unique_borrowers),
+    },
+    {
+      key: "num_copies",
+      label: "Copies Owned",
+      render: (item) => formatNumber(item.num_copies),
+    },
+    {
+      key: "available_copies",
+      label: "Available Now",
+      render: (item) => formatNumber(item.available_copies),
+    },
+    {
+      key: "checked_out_copies",
+      label: "Checked Out Now",
+      render: (item) => formatNumber(item.checked_out_copies),
+    },
+    {
+      key: "last_borrow_date",
+      label: `Last Borrowed (${periodLabel})`,
+      render: (item) => formatDate(item.last_borrow_date),
+    },
+    {
+      key: "recommended_additional_copies",
+      label: "Stock Recommendation",
+      render: (item) => <RecommendationCell item={item} />,
+    },
   ];
-
-  return (
-    <RowShell
-      title={item.Item_name}
-      subtitle={getItemSubtitle(item)}
-      featured={getFeaturedField(fields, sort)}
-      fields={getOtherFields(fields, sort)}
-    />
-  );
 }
 
-function FeeRow({ item, sort }) {
-  const fields = [
-    { key: "unpaid_total", label: "Unpaid Total", value: formatMoney(item.unpaid_total) },
-    { key: "unpaid_fee_count", label: "Unpaid Fees", value: formatNumber(item.unpaid_fee_count) },
-    { key: "overdue_item_count", label: "Affected Items", value: formatNumber(item.overdue_item_count) },
-    { key: "avg_fee_amount", label: "Avg Fee", value: formatMoney(item.avg_fee_amount) },
-    { key: "largest_fee_amount", label: "Largest Fee", value: formatMoney(item.largest_fee_amount) },
+function getFeeColumns(periodLabel) {
+  return [
+    {
+      key: "patron",
+      label: "Patron",
+      sortable: false,
+      render: (item) =>
+        renderIdentityCell(
+          `${item.First_name} ${item.Last_name}`,
+          `Patron ID: ${item.Person_ID}`
+        ),
+    },
+    { key: "role", label: "Role", render: (item) => formatRole(item.role) },
+    {
+      key: "unpaid_total",
+      label: `Unpaid Total (${periodLabel})`,
+      render: (item) => formatMoney(item.unpaid_total),
+    },
+    {
+      key: "unpaid_fee_count",
+      label: `Unpaid Fees (${periodLabel})`,
+      render: (item) => formatNumber(item.unpaid_fee_count),
+    },
+    {
+      key: "overdue_item_count",
+      label: `Affected Items (${periodLabel})`,
+      render: (item) => formatNumber(item.overdue_item_count),
+    },
+    {
+      key: "avg_fee_amount",
+      label: `Avg Fee (${periodLabel})`,
+      render: (item) => formatMoney(item.avg_fee_amount),
+    },
+    {
+      key: "largest_fee_amount",
+      label: `Largest Fee (${periodLabel})`,
+      render: (item) => formatMoney(item.largest_fee_amount),
+    },
     {
       key: "max_days_outstanding",
-      label: "Oldest Debt Age",
-      value: `${formatNumber(item.max_days_outstanding)} days`,
+      label: `Oldest Debt Age (${periodLabel})`,
+      render: (item) => `${formatNumber(item.max_days_outstanding)} days`,
     },
     {
       key: "avg_days_outstanding",
-      label: "Avg Debt Age",
-      value: `${formatDecimal(item.avg_days_outstanding)} days`,
+      label: `Avg Debt Age (${periodLabel})`,
+      render: (item) => `${formatDecimal(item.avg_days_outstanding)} days`,
     },
     {
       key: "oldest_unpaid_date",
-      label: "Oldest Debt Date",
-      value: formatDate(item.oldest_unpaid_date),
+      label: `Oldest Debt Date (${periodLabel})`,
+      render: (item) => formatDate(item.oldest_unpaid_date),
     },
-    { key: "role", label: "Role", value: formatRole(item.role) },
   ];
-
-  return (
-    <RowShell
-      title={`${item.First_name} ${item.Last_name}`}
-      subtitle={`Patron ID: ${item.Person_ID}`}
-      featured={getFeaturedField(fields, sort)}
-      fields={getOtherFields(fields, sort)}
-    />
-  );
 }
 
-function PatronRow({ item, sort }) {
-  const fields = [
-    { key: "recent_borrows", label: "Recent Borrows (90d)", value: formatNumber(item.recent_borrows) },
-    { key: "lifetime_borrow_rate", label: "Borrow Rate", value: formatDecimal(item.lifetime_borrow_rate) },
-    { key: "lifetime_borrows", label: "Lifetime Borrows", value: formatNumber(item.lifetime_borrows) },
+function getPatronColumns(periodLabel) {
+  return [
     {
-      key: "unique_titles_borrowed",
-      label: "Unique Titles",
-      value: formatNumber(item.unique_titles_borrowed),
+      key: "patron",
+      label: "Patron",
+      sortable: false,
+      render: (item) =>
+        renderIdentityCell(
+          `${item.First_name} ${item.Last_name}`,
+          `Patron ID: ${item.Person_ID}`
+        ),
     },
-    { key: "active_holds", label: "Active Holds", value: formatNumber(item.active_holds) },
-    { key: "unpaid_total", label: "Unpaid Total", value: formatMoney(item.unpaid_total) },
-    { key: "unpaid_fee_count", label: "Unpaid Fees", value: formatNumber(item.unpaid_fee_count) },
-    { key: "patrons_months", label: "Patron Months", value: formatNumber(item.patrons_months) },
-    {
-      key: "days_since_last_borrow",
-      label: "Days Since Last Borrow",
-      value:
-        item.days_since_last_borrow == null
-          ? "Never"
-          : `${formatNumber(item.days_since_last_borrow)} days`,
-    },
-    { key: "role", label: "Role", value: formatRole(item.role) },
+    { key: "role", label: "Role", render: (item) => formatRole(item.role) },
     {
       key: "account_status",
       label: "Account Status",
-      value: Number(item.account_status) === 1 ? "Active" : "Inactive",
+      render: (item) => (Number(item.account_status) === 1 ? "Active" : "Inactive"),
     },
     {
       key: "borrow_status",
       label: "Borrow Status",
-      value: Number(item.borrow_status) === 1 ? "Good Standing" : "Restricted",
+      render: (item) => (Number(item.borrow_status) === 1 ? "Good Standing" : "Restricted"),
+    },
+    {
+      key: "borrow_count",
+      label: `Borrows (${periodLabel})`,
+      render: (item) => formatNumber(item.borrow_count),
+    },
+    {
+      key: "borrow_rate",
+      label: `Borrow Rate (${periodLabel})`,
+      render: (item) => formatDecimal(item.borrow_rate),
+    },
+    {
+      key: "unique_titles_borrowed",
+      label: `Unique Titles (${periodLabel})`,
+      render: (item) => formatNumber(item.unique_titles_borrowed),
+    },
+    {
+      key: "active_holds",
+      label: `Active Holds (${periodLabel})`,
+      render: (item) => formatNumber(item.active_holds),
+    },
+    {
+      key: "unpaid_total",
+      label: `Unpaid Total (${periodLabel})`,
+      render: (item) => formatMoney(item.unpaid_total),
+    },
+    {
+      key: "unpaid_fee_count",
+      label: `Unpaid Fees (${periodLabel})`,
+      render: (item) => formatNumber(item.unpaid_fee_count),
+    },
+    {
+      key: "patrons_months",
+      label: "Patron Months",
+      render: (item) => formatNumber(item.patrons_months),
+    },
+    {
+      key: "days_since_last_borrow",
+      label: `Days Since Last Borrow (${periodLabel})`,
+      render: (item) =>
+        item.days_since_last_borrow == null
+          ? "Never"
+          : `${formatNumber(item.days_since_last_borrow)} days`,
+    },
+    {
+      key: "last_borrow_date",
+      label: `Last Borrowed (${periodLabel})`,
+      render: (item) => formatDate(item.last_borrow_date),
     },
   ];
+}
 
+function RecommendationCell({ item }) {
   return (
-    <RowShell
-      title={`${item.First_name} ${item.Last_name}`}
-      subtitle={`Patron ID: ${item.Person_ID} | Last Borrow: ${formatDate(item.last_borrow_date)}`}
-      featured={getFeaturedField(fields, sort)}
-      fields={getOtherFields(fields, sort)}
-    />
+    <div
+      className={`min-w-[180px] rounded-md border px-3 py-2 ${
+        item.recommendation_tone === "warn"
+          ? "border-amber-300 bg-amber-50"
+          : "border-green-200 bg-green-50"
+      }`}
+    >
+      <div
+        className={`font-semibold ${
+          item.recommendation_tone === "warn" ? "text-amber-900" : "text-green-900"
+        }`}
+      >
+        {item.recommendation_summary}
+      </div>
+      <div className="mt-1 text-xs text-gray-600">{item.recommendation_detail}</div>
+    </div>
   );
 }
 
-function getItemSubtitle(item) {
-  const itemType = formatItemType(item.Item_type);
-  const authorName = [item.author_firstName, item.author_lastName].filter(Boolean).join(" ");
-
-  if (authorName) {
-    return `Item ID: ${item.Item_ID} | ${itemType} | ${authorName}`;
+function getDefaultPeriodValue(periodType) {
+  if (periodType === "month") {
+    return String(new Date().getMonth() + 1);
   }
 
-  return `Item ID: ${item.Item_ID} | ${itemType}`;
+  if (periodType === "quarter") {
+    return String(Math.floor(new Date().getMonth() / 3) + 1);
+  }
+
+  if (periodType === "year") {
+    return String(CURRENT_YEAR);
+  }
+
+  return "";
+}
+
+function createDefaultPeriodFilters() {
+  return {
+    periodType: DEFAULT_PERIOD_TYPE,
+    periodValue: getDefaultPeriodValue(DEFAULT_PERIOD_TYPE),
+  };
+}
+
+function appendPeriodParams(params, filters) {
+  params.set("periodType", filters.periodType || "all");
+
+  if (filters.periodType !== "all" && filters.periodValue) {
+    params.set("periodValue", filters.periodValue);
+  }
+}
+
+function getPeriodSelectionLabel(periodType, periodValue) {
+  if (periodType === "month") {
+    const selectedMonth = MONTH_OPTIONS.find((option) => option.value === periodValue);
+    return selectedMonth ? `${selectedMonth.label} ${CURRENT_YEAR}` : `Month ${CURRENT_YEAR}`;
+  }
+
+  if (periodType === "quarter") {
+    return `Q${periodValue} ${CURRENT_YEAR}`;
+  }
+
+  if (periodType === "year") {
+    return periodValue || String(CURRENT_YEAR);
+  }
+
+  return "All Time";
+}
+
+function getPeriodTriggerLabel(periodType, periodValue) {
+  if (periodType === "all") {
+    return "All Time";
+  }
+
+  const typeLabel =
+    PERIOD_TYPE_OPTIONS.find((option) => option.value === periodType)?.label ?? "Time Period";
+
+  return `${typeLabel}: ${getPeriodSelectionLabel(periodType, periodValue)}`;
+}
+
+function getPeriodPromptLabel(periodType) {
+  if (periodType === "month") {
+    return "Pick a month";
+  }
+
+  if (periodType === "quarter") {
+    return "Pick a quarter";
+  }
+
+  if (periodType === "year") {
+    return "Pick a year";
+  }
+
+  return "Using the full borrowing history";
+}
+
+function getQuarterSubtitle(label) {
+  const match = label.match(/\((.*)\)/);
+  return match ? match[1] : label;
+}
+
+function useSyncedHorizontalScroll(deps) {
+  const topScrollRef = useRef(null);
+  const bottomScrollRef = useRef(null);
+  const topSpacerRef = useRef(null);
+
+  useEffect(() => {
+    function syncScrollWidth() {
+      if (!bottomScrollRef.current || !topSpacerRef.current) {
+        return;
+      }
+
+      const table = bottomScrollRef.current.querySelector("table");
+      topSpacerRef.current.style.width = table ? `${table.scrollWidth}px` : "100%";
+    }
+
+    syncScrollWidth();
+    window.addEventListener("resize", syncScrollWidth);
+
+    return () => {
+      window.removeEventListener("resize", syncScrollWidth);
+    };
+  }, deps);
+
+  function syncPartnerScroll(sourceRef, targetRef) {
+    if (!sourceRef.current || !targetRef.current) {
+      return;
+    }
+
+    if (targetRef.current.scrollLeft !== sourceRef.current.scrollLeft) {
+      targetRef.current.scrollLeft = sourceRef.current.scrollLeft;
+    }
+  }
+
+  function handleTopScroll() {
+    syncPartnerScroll(topScrollRef, bottomScrollRef);
+  }
+
+  function handleBottomScroll() {
+    syncPartnerScroll(bottomScrollRef, topScrollRef);
+  }
+
+  return {
+    topScrollRef,
+    bottomScrollRef,
+    topSpacerRef,
+    handleTopScroll,
+    handleBottomScroll,
+  };
+}
+
+function renderIdentityCell(title, subtitle) {
+  return (
+    <div className="min-w-[220px]">
+      <div className="font-semibold text-green-900">{title}</div>
+      <div className="text-xs text-gray-500">{subtitle}</div>
+    </div>
+  );
+}
+
+function renderPopularityIdentityCell(item) {
+  const authorName =
+    [item.author_firstName, item.author_lastName].filter(Boolean).join(" ") || "N/A";
+  const details = [
+    formatItemType(item.Item_type),
+    item.genre || "N/A",
+    authorName,
+  ];
+
+  return (
+    <div className="min-w-[240px]">
+      <div className="font-semibold text-green-900">{item.Item_name}</div>
+      <div className="text-sm text-green-800">{details.join(" | ")}</div>
+    </div>
+  );
+}
+
+function getRowKey(reportType, row, index) {
+  if (reportType === "popularity") {
+    return row.Item_ID ?? index;
+  }
+
+  if (reportType === "fees") {
+    return `fee-${row.Person_ID ?? index}`;
+  }
+
+  return `patron-${row.Person_ID ?? index}`;
+}
+
+function getSortIndicator(isSortedColumn, sortDirection) {
+  if (!isSortedColumn) {
+    return "\u2195";
+  }
+
+  return sortDirection === "asc" ? "\u2191" : "\u2193";
 }
 
 function formatItemType(type) {
