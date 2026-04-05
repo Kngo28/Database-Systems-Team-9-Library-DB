@@ -12,15 +12,9 @@ async function addItem(req, res) {
             const {
                 item_name, item_type,
                 // book fields
-<<<<<<< HEAD
-                author_firstName, author_lastName, publisher, language, year_published,
-                // cd fields
-                cd_type, rating, release_date, genre,
-=======
                 author_firstName, author_lastName, publisher, language, year_published, book_damage_fine, book_loss_fine, book_genre,
                 // cd fields
                 cd_type, rating, release_date, cd_damage_fine, cd_loss_fine, cd_genre,
->>>>>>> main
                 // device fields
                 device_type,
                 // number of copies to add
@@ -43,17 +37,6 @@ async function addItem(req, res) {
             // step 2 — insert into the correct subtype table based on item_type. item_type 1 = Book, 2 = CD, 3 = Device
             if (item_type === 1) {
                 await db.query(
-<<<<<<< HEAD
-                    `INSERT INTO Book (Item_ID, author_firstName, author_lastName, publisher, language, year_published, Book_damage_fine, Book_loss_fine)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [itemId, author_firstName, author_lastName, publisher, language, year_published, policy.damage, policy.loss]
-                );
-            } else if (item_type === 2) {
-                await db.query(
-                    `INSERT INTO CD (Item_ID, CD_type, rating, release_date, genre, CD_damage_fine, CD_loss_fine)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                    [itemId, cd_type, rating, release_date, genre, policy.damage, policy.loss]
-=======
                     `INSERT INTO Book (Item_ID, author_firstName, author_lastName, publisher, language, year_published, Book_damage_fine, Book_loss_fine, genre)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [itemId, author_firstName, author_lastName, publisher, language, year_published, book_damage_fine, book_loss_fine, book_genre]
@@ -63,7 +46,6 @@ async function addItem(req, res) {
                     `INSERT INTO CD (Item_ID, CD_type, rating, release_date, CD_damage_fine, CD_loss_fine, genre)
                      VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     [itemId, cd_type, rating, release_date, cd_damage_fine, cd_loss_fine, cd_genre]
->>>>>>> main
                 );
             } else if (item_type === 3) {
                 await db.query(
