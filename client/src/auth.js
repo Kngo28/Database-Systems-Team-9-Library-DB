@@ -3,7 +3,7 @@ export function getSessionRoleState() {
   const userRole = Number(sessionStorage.getItem("userRole"));
   const staffRole = Number(sessionStorage.getItem("staffRole"));
 
-  if (userType === "admin" || (userRole === 1 && staffRole === 1)) {
+  if (userType === "admin" || (userRole === 1 && staffRole === 2)) {
     return {
       userType: "admin",
       isAdmin: true,
@@ -12,7 +12,7 @@ export function getSessionRoleState() {
     };
   }
 
-  if (userType === "staff" || (userRole === 1 && staffRole === 2)) {
+  if (userType === "staff" || (userRole === 1 && staffRole === 1)) {
     return {
       userType: "staff",
       isAdmin: false,
