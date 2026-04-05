@@ -44,9 +44,9 @@ function requireRole(role) {
     }
 }
 
-// only allows access if the user is staff (role 1) AND has admin permissions (staff_permissions 1)
+// only allows access if the user is staff (role 1) AND has admin permissions (staff_permissions 2)
 function requireAdmin(req, res, next) {
-    if (req.user.role !== 1 || req.user.staff_permissions !== 1) {
+    if (req.user.role !== 1 || req.user.staff_permissions !== 2) {
         res.writeHead(403);
         return res.end(JSON.stringify({ error: 'Admin access required' }));
     }

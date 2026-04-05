@@ -29,7 +29,7 @@ async function updateStaffPermissions(req, res) {
 
             if (staff_permissions !== 1 && staff_permissions !== 2) {
                 res.writeHead(400);
-                return res.end(JSON.stringify({ error: 'staff_permissions must be 1 (admin) or 2 (staff)' }));
+                return res.end(JSON.stringify({ error: 'staff_permissions must be 1 (staff) or 2 (admin)' }));
             }
 
             // prevent admin from demoting themselves

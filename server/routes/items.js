@@ -1,5 +1,6 @@
 const db = require('../db');
 const { URL } = require('url');
+const ITEM_FEE_POLICY = require('../config/itemFeePolicy');
 
 async function addItem(req, res) {
     let body = '';
@@ -15,10 +16,16 @@ async function addItem(req, res) {
                 // cd fields
                 cd_type, rating, release_date, cd_damage_fine, cd_loss_fine, cd_genre,
                 // device fields
-                device_type, device_damage_fine, device_loss_fine,
+                device_type,
                 // number of copies to add
                 num_copies
             } = JSON.parse(body);
+            const policy = ITEM_FEE_POLICY[item_type];
+
+            if (!policy) {
+                res.writeHead(400);
+                return res.end(JSON.stringify({ error: 'Invalid item type' }));
+            }
 
             // step 1 — insert into Item table first, get back the new Item_ID
             const [itemResult] = await db.query(
@@ -44,7 +51,7 @@ async function addItem(req, res) {
                 await db.query(
                     `INSERT INTO Device (Item_ID, Device_type, Device_damage_fine, Device_loss_fine)
                      VALUES (?, ?, ?, ?)`,
-                    [itemId, device_type, device_damage_fine, device_loss_fine]
+                    [itemId, device_type, policy.damage, policy.loss]
                 );
             }
 

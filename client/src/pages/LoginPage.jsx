@@ -56,7 +56,7 @@ export default function LoginPage() {
           sessionStorage.setItem("staffRole", String(staffPermissions));
         }
 
-        if (staffPermissions === 1) {
+        if (staffPermissions === 2) {
           sessionStorage.setItem("userType", "admin");
           navigate("/admin");
         } else {
