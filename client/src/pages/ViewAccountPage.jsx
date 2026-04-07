@@ -4,6 +4,8 @@ import holdsIcon from "../assets/hold.png";
 import borrowIcon from "../assets/borrow.png";
 import feesIcon from "../assets/fee.png";
 import profileIcon from "../assets/user.png";
+import notifIcon from "../assets/notif.png";
+
 
 export default function ViewAccountPage() {
   const navigate = useNavigate();
@@ -37,6 +39,12 @@ export default function ViewAccountPage() {
       icon: profileIcon,
       path: "/my-profile"
     },
+    {
+      title: "View My Notifications",
+      description: "View past and current notifications.",
+      icon: notifIcon,
+      path: "/notifications"
+    }
   ];
 
   return (
