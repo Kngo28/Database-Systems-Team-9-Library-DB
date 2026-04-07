@@ -32,7 +32,7 @@ export default function MyProfilePage() {
         setPerson(data.person);
 
         const editableProfile = {
-          personId: data.person.personId || personId || "—",
+          personId: data.person.Person_ID || personId || "—",
           firstName: data.person.First_name || "",
           lastName: data.person.Last_name || "",
           username: data.person.username || "",
@@ -84,6 +84,7 @@ export default function MyProfilePage() {
 
   const handleSave = async () => {
     try {
+      setError("");
       // Future backend connection goes here
       // Example payload: only editable fields
       const updatedProfile = {
@@ -96,9 +97,19 @@ export default function MyProfilePage() {
         streetAddress: formData.streetAddress,
         zipCode: formData.zipCode,
       };
-
-      console.log("Saving profile:", updatedProfile);
-
+      const response = await apiFetch("/api/users/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedProfile),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "Failed to save profile changes.");
+        return;
+      }
       setOriginalData(formData);
       setPerson((prev) => ({
         ...prev,

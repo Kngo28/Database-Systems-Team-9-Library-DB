@@ -80,6 +80,11 @@ const server = http.createServer((req, res) => {
         verifyToken(req, res, () => {
             users.lookupUser(req, res);
         });
+        
+    } else if (req.method === 'PUT' && req.url === '/api/users/profile') {
+        verifyToken(req, res, () => {
+            users.updateUserProfile(req, res);
+        });
 
     // staff-only route — edit an existing item
     } else if (req.method === 'PUT' && req.url.startsWith('/api/items/')) {
