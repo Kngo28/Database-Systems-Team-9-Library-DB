@@ -218,13 +218,19 @@ export default function ManageItemsPage() {
     e.preventDefault();
     try {
       const token = sessionStorage.getItem("token");
+      const payload = { ...updateForm };
+      // convert empty strings to null for numeric/date fields so MySQL doesn't reject them
+      ["book_damage_fine", "book_loss_fine", "cd_damage_fine", "cd_loss_fine",
+       "device_damage_fine", "device_loss_fine", "year_published", "release_date"].forEach((f) => {
+        if (payload[f] === "") payload[f] = null;
+      });
       const response = await apiFetch(`/api/items/${selectedUpdateItem.Item_ID}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(updateForm),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (!response.ok) {
