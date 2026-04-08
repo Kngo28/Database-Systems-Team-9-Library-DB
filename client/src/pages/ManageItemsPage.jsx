@@ -33,6 +33,7 @@ export default function ManageItemsPage() {
   const [deviceForm, setDeviceForm] = useState({
     name: "",
     deviceType: "",
+    num_copies: 1,
   });
 
   const [removeForm, setRemoveForm] = useState({
@@ -342,6 +343,7 @@ export default function ManageItemsPage() {
         item_name: deviceForm.name,
         item_type: 3,
         device_type: deviceForm.deviceType ? parseInt(deviceForm.deviceType, 10) : null,
+        num_copies: Number(deviceForm.num_copies),
       };
       const response = await apiFetch("/api/items", {
         method: "POST",
@@ -363,6 +365,7 @@ export default function ManageItemsPage() {
       setDeviceForm({
         name: "",
         deviceType: "",
+        num_copies: 1,
       });
     } catch (error) {
       console.error("Error adding device:", error);
@@ -801,7 +804,22 @@ export default function ManageItemsPage() {
                 </select>
               </div>
 
-              <button 
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Number of Copies <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  name="num_copies"
+                  value={deviceForm.num_copies}
+                  onChange={handleDeviceChange}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3"
+                  required
+                />
+              </div>
+
+              <button
                 type="submit"
                 className="bg-green-800 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-900">
                 Add Device
