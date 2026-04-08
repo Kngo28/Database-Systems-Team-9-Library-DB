@@ -86,7 +86,7 @@ async function getItems(req, res) {
                 b.author_firstName, b.author_lastName, b.publisher, b.language, b.year_published, b.Book_damage_fine, b.Book_loss_fine, b.genre AS book_genre,
                 c.CD_type, c.rating, c.release_date, c.CD_damage_fine, c.CD_loss_fine, c.genre AS cd_genre,
                 d.Device_type, d.Device_damage_fine, d.Device_loss_fine,
-                COUNT(cp.Copy_ID) AS total_copies,
+                SUM(CASE WHEN cp.Copy_status != 0 THEN 1 ELSE 0 END) AS total_copies,
                 SUM(CASE WHEN cp.Copy_status = 1 THEN 1 ELSE 0 END) AS available_copies
             FROM Item i
             LEFT JOIN Book b ON i.Item_ID = b.Item_ID
