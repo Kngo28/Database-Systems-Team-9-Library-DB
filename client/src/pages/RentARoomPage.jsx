@@ -30,14 +30,15 @@ export default function RentARoomPage() {
   const [availableSlots, setAvailableSlots] = useState(null); // null = not fetched yet
   const [slotsLoading, setSlotsLoading] = useState(false);
 
-  // max length that fits before closing time
-  const maxLength = Math.min(8, CLOSE_HOUR - selectedHour);
-
   const token = sessionStorage.getItem("token");
   const personId = sessionStorage.getItem("personId");
   const userType = sessionStorage.getItem("userType");
   const isStaff = userType === "staff";
   const isAdmin = userType === "admin";
+
+  // patrons capped at 4 hours; staff/admin can book up to closing time
+  const roleMax = isStaff || isAdmin ? CLOSE_HOUR - OPEN_HOUR : 4;
+  const maxLength = Math.min(roleMax, CLOSE_HOUR - selectedHour);
 
   const fetchReservations = async () => {
     setLoading(true);

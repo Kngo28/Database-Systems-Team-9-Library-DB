@@ -35,10 +35,16 @@ async function makeReservation(req, res) {
                 return res.end(JSON.stringify({ error: 'You can only make reservations on your own behalf' }));
             }
 
-            // validate length is a whole number of hours
-            if (!Number.isInteger(length) || length < 1 || length > 8) {
+            // patrons max 4 hours, staff can book up to the full operating day
+            const isPatron = req.user.role === 2;
+            const maxAllowed = isPatron ? 4 : (CLOSE_HOUR - OPEN_HOUR);
+            if (!Number.isInteger(length) || length < 1 || length > maxAllowed) {
                 res.writeHead(400);
-                return res.end(JSON.stringify({ error: 'Reservation length must be between 1 and 8 hours' }));
+                return res.end(JSON.stringify({
+                    error: isPatron
+                        ? 'Patrons can reserve a room for up to 4 hours'
+                        : `Reservation length must be between 1 and ${maxAllowed} hours`
+                }));
             }
 
             const startDate = new Date(start_time);
