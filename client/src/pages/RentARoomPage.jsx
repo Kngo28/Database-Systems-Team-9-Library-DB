@@ -3,15 +3,33 @@ import { useNavigate } from "react-router-dom";
 import NavigationBar from "../components/NavigationBar";
 import { apiFetch } from "../api";
 
+const OPEN_HOUR = 8;
+const CLOSE_HOUR = 21;
+
+// generate time slot labels for the dropdown (8:00 AM … 8:00 PM)
+const TIME_SLOTS = Array.from({ length: CLOSE_HOUR - OPEN_HOUR }, (_, i) => {
+  const hour = OPEN_HOUR + i;
+  const label = hour < 12
+    ? `${hour}:00 AM`
+    : hour === 12
+    ? `12:00 PM`
+    : `${hour - 12}:00 PM`;
+  return { hour, label };
+});
+
 export default function RentARoomPage() {
   const navigate = useNavigate();
   const [reservation, setReservation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [startTime, setStartTime] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedHour, setSelectedHour] = useState(OPEN_HOUR);
   const [length, setLength] = useState(1);
   const [nextAvailable, setNextAvailable] = useState(null);
+
+  // max length that fits before closing time
+  const maxLength = Math.min(8, CLOSE_HOUR - selectedHour);
 
   const token = sessionStorage.getItem("token");
   const personId = sessionStorage.getItem("personId");
@@ -49,6 +67,11 @@ export default function RentARoomPage() {
     e.preventDefault();
     setMessage("");
     setNextAvailable(null);
+
+    // build ISO start_time from the chosen date + hour slot
+    const startTime = `${selectedDate}T${String(selectedHour).padStart(2, "0")}:00:00`;
+    const clampedLength = Math.min(parseInt(length), maxLength);
+
     try {
       const response = await apiFetch("/api/reservations", {
         method: "POST",
@@ -59,7 +82,7 @@ export default function RentARoomPage() {
         body: JSON.stringify({
           person_id: parseInt(personId),
           start_time: startTime,
-          length: parseInt(length),
+          length: clampedLength,
         }),
       });
       const data = await response.json();
@@ -69,7 +92,8 @@ export default function RentARoomPage() {
         return;
       }
       setMessage(`Reservation made! Room ${data.room_id} from ${data.start_time} to ${data.end_time}.`);
-      setStartTime("");
+      setSelectedDate("");
+      setSelectedHour(OPEN_HOUR);
       setLength(1);
       fetchReservations();
     } catch (err) {
@@ -151,23 +175,43 @@ export default function RentARoomPage() {
             <h2 className="text-lg font-bold text-gray-800 mb-6">Make a Reservation</h2>
             <form onSubmit={handleReserve} className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Date</label>
                 <input
-                  type="datetime-local"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
+                  type="date"
+                  value={selectedDate}
+                  min={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                   className="w-full border border-gray-300 rounded-xl px-4 py-3"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Length (hours)</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Start Time <span className="text-gray-400 font-normal">(Library hours: 8:00 AM – 9:00 PM)</span>
+                </label>
                 <select
-                  value={length}
-                  onChange={(e) => setLength(e.target.value)}
+                  value={selectedHour}
+                  onChange={(e) => {
+                    const h = parseInt(e.target.value);
+                    setSelectedHour(h);
+                    // clamp length so it doesn't push past closing
+                    if (length > CLOSE_HOUR - h) setLength(CLOSE_HOUR - h);
+                  }}
                   className="w-full border border-gray-300 rounded-xl px-4 py-3"
                 >
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((h) => (
+                  {TIME_SLOTS.map(({ hour, label }) => (
+                    <option key={hour} value={hour}>{label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Duration (hours)</label>
+                <select
+                  value={length}
+                  onChange={(e) => setLength(parseInt(e.target.value))}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3"
+                >
+                  {Array.from({ length: maxLength }, (_, i) => i + 1).map((h) => (
                     <option key={h} value={h}>{h} hour{h > 1 ? "s" : ""}</option>
                   ))}
                 </select>

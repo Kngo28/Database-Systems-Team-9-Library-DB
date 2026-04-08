@@ -18,6 +18,9 @@ async function addRoom(req, res) {
     }
 }
 
+const OPEN_HOUR = 8;   // 8:00 AM
+const CLOSE_HOUR = 21; // 9:00 PM
+
 async function makeReservation(req, res) {
     let body = '';
 
@@ -32,10 +35,41 @@ async function makeReservation(req, res) {
                 return res.end(JSON.stringify({ error: 'You can only make reservations on your own behalf' }));
             }
 
-            // validate length is between 1 and 8 hours
+            // validate length is a whole number of hours
             if (!Number.isInteger(length) || length < 1 || length > 8) {
                 res.writeHead(400);
                 return res.end(JSON.stringify({ error: 'Reservation length must be between 1 and 8 hours' }));
+            }
+
+            const startDate = new Date(start_time);
+
+            // start time must be on the hour (no partial-hour slots)
+            if (startDate.getMinutes() !== 0 || startDate.getSeconds() !== 0) {
+                res.writeHead(400);
+                return res.end(JSON.stringify({ error: 'Reservations must start on the hour (e.g. 9:00, 10:00)' }));
+            }
+
+            // start time must be within operating hours
+            const startHour = startDate.getHours();
+            if (startHour < OPEN_HOUR || startHour >= CLOSE_HOUR) {
+                res.writeHead(400);
+                return res.end(JSON.stringify({
+                    error: `Reservations can only start between ${OPEN_HOUR}:00 AM and ${CLOSE_HOUR - 1}:00 PM`
+                }));
+            }
+
+            // end time must not exceed closing time
+            if (startHour + length > CLOSE_HOUR) {
+                res.writeHead(400);
+                return res.end(JSON.stringify({
+                    error: `Reservation would end after closing time (${CLOSE_HOUR}:00). Please choose a shorter duration or earlier start time.`
+                }));
+            }
+
+            // start time must not be in the past
+            if (startDate < new Date()) {
+                res.writeHead(400);
+                return res.end(JSON.stringify({ error: 'Reservation start time cannot be in the past' }));
             }
 
             // check patron doesn't already have an active reservation
@@ -49,7 +83,6 @@ async function makeReservation(req, res) {
                 return res.end(JSON.stringify({ error: 'You already have an active reservation' }));
             }
 
-            const startDate = new Date(start_time);
             const endDate = new Date(startDate.getTime() + length * 60 * 60 * 1000);
 
             // format datetime using local time to avoid UTC offset in responses
