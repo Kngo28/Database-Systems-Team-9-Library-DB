@@ -82,7 +82,7 @@ async function lookupUser(req, res) {
         const person = personRows[0];
 
         const [borrowRows] = await db.query(
-            `SELECT COUNT(*) AS activeBorrows
+            `SELECT COUNT(DISTINCT bi.Copy_ID) AS activeBorrows
              FROM BorrowedItem bi
              JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
              WHERE bi.Person_ID = ? AND cp.Copy_status = 2`,

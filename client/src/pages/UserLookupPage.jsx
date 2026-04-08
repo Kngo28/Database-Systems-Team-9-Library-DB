@@ -267,7 +267,7 @@ export default function UserLookupPage() {
           {message && (
             <p
               className={`text-sm font-medium ${
-                message.includes("loaded") ? "text-green-700" : "text-red-700"
+                message.includes("loaded") || message.includes("found") ? "text-green-700" : "text-red-700"
               }`}
             >
               {message}
