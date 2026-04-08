@@ -21,6 +21,17 @@ async function addRoom(req, res) {
 const OPEN_HOUR = 8;   // 8:00 AM
 const CLOSE_HOUR = 21; // 9:00 PM
 
+// mark any reservations whose end time has passed as expired (status 2)
+async function expireReservations(personId) {
+    await db.query(
+        `UPDATE RoomReservation
+         SET reservation_status = 2
+         WHERE Person_ID = ? AND reservation_status = 1
+         AND DATE_ADD(start_time, INTERVAL TIME_TO_SEC(length) SECOND) <= NOW()`,
+        [personId]
+    );
+}
+
 async function makeReservation(req, res) {
     let body = '';
 
@@ -77,6 +88,9 @@ async function makeReservation(req, res) {
                 res.writeHead(400);
                 return res.end(JSON.stringify({ error: 'Reservation start time cannot be in the past' }));
             }
+
+            // expire any reservations whose end time has passed
+            await expireReservations(person_id);
 
             // check patron doesn't already have an active reservation
             const [existingReservation] = await db.query(
@@ -181,6 +195,8 @@ async function makeReservation(req, res) {
 async function getReservationsForPerson(req, res) {
     try {
         const personId = req.url.split('/')[3];
+
+        await expireReservations(personId);
 
         // patrons can only view their own reservations
         if (req.user.role === 2 && req.user.person_id !== parseInt(personId)) {
