@@ -27,8 +27,8 @@ async function expireReservations(personId) {
         `UPDATE RoomReservation
          SET reservation_status = 2
          WHERE Person_ID = ? AND reservation_status = 1
-         AND DATE_ADD(start_time, INTERVAL TIME_TO_SEC(length) SECOND) <= NOW()`,
-        [personId]
+         AND DATE_ADD(start_time, INTERVAL TIME_TO_SEC(length) SECOND) <= ?`,
+        [personId, new Date()]
     );
 }
 
