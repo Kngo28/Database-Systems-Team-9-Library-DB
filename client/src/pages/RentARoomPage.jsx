@@ -112,7 +112,11 @@ export default function RentARoomPage() {
         if (data.next_available) setNextAvailable(data.next_available);
         return;
       }
-      setMessage(`Reservation made! Room ${data.room_id} from ${data.start_time} to ${data.end_time}.`);
+      const start = new Date(data.start_time);
+      const end = new Date(data.end_time);
+      const datePart = start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+      const timePart = `${start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} – ${end.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+      setMessage(`Reservation confirmed! Room ${data.room_id} · ${datePart} · ${timePart}`);
       setSelectedDate("");
       setSelectedHour(OPEN_HOUR);
       setLength(1);
@@ -143,7 +147,17 @@ export default function RentARoomPage() {
 
   const formatDatetime = (str) => {
     if (!str) return "—";
-    return new Date(str).toLocaleString();
+    const d = new Date(str);
+    const date = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+    const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    return `${date} · ${time}`;
+  };
+
+  // MySQL returns length as "HH:MM:SS" — convert to "X hour(s)"
+  const formatLength = (val) => {
+    if (!val) return "—";
+    const hours = typeof val === "string" ? parseInt(val.split(":")[0], 10) : val;
+    return `${hours} hour${hours !== 1 ? "s" : ""}`;
   };
 
   return (
@@ -164,7 +178,7 @@ export default function RentARoomPage() {
         {loading && <p className="text-gray-600">Loading...</p>}
         {error && <p className="text-red-600">{error}</p>}
         {message && (
-          <p className={`mb-6 text-sm font-medium ${message.includes("success") || message.includes("made") ? "text-green-700" : "text-red-600"}`}>
+          <p className={`mb-6 text-sm font-medium ${message.includes("confirmed") || message.includes("cancelled") ? "text-green-700" : "text-red-600"}`}>
             {message}
             {nextAvailable && (
               <span className="block mt-1">Next available slot: {formatDatetime(nextAvailable)}</span>
@@ -179,7 +193,7 @@ export default function RentARoomPage() {
             <div className="space-y-2 text-sm text-gray-600">
               <p><span className="font-semibold">Room:</span> {reservation.Room_ID}</p>
               <p><span className="font-semibold">Start:</span> {formatDatetime(reservation.start_time)}</p>
-              <p><span className="font-semibold">Length:</span> {reservation.length}</p>
+              <p><span className="font-semibold">Length:</span> {formatLength(reservation.length)}</p>
             </div>
             <button
               onClick={handleCancel}
