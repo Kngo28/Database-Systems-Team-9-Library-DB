@@ -203,22 +203,4 @@ BEGIN
   END IF;
 END //
 
-CREATE TRIGGER shift_hold_queue
-AFTER UPDATE ON HoldItem
-FOR EACH ROW
-BEGIN
-  DECLARE item_id INT;
-
-  IF OLD.hold_status IN (1, 2) AND NEW.hold_status IN (0, 3) THEN
-    SELECT Item_ID INTO item_id FROM Copy WHERE Copy_ID = NEW.Copy_ID;
-
-    UPDATE HoldItem h
-    JOIN Copy c ON h.Copy_ID = c.Copy_ID
-    SET h.queue_status = h.queue_status - 1
-    WHERE c.Item_ID = item_id
-      AND h.hold_status IN (1, 2)
-      AND h.queue_status > OLD.queue_status;
-  END IF;
-END //
-
 DELIMITER ;
