@@ -86,6 +86,22 @@ const server = http.createServer((req, res) => {
         verifyToken(req, res, () => {
             users.updateUserProfile(req, res);
         });
+
+    } else if (req.method === 'PUT' && req.url === '/api/notifications/read-all') {
+    verifyToken(req, res, () => {
+        notifications.markAllNotificationsAsRead(req, res);
+    });
+
+    } else if (req.method === 'PUT' && req.url.startsWith('/api/notifications/')) {
+        verifyToken(req, res, () => {
+        notifications.markNotificationAsRead(req, res);
+    });
+        // any logged-in user can view homepage notification summary
+    } else if (req.method === 'GET' && req.url === '/api/notifications/summary') {
+        verifyToken(req, res, () => {
+            notifications.getNotificationSummary(req, res);
+        });
+
     // any logged-in user can view their own notifications
     } else if (req.method === 'GET' && req.url === '/api/notifications') {
         verifyToken(req, res, () => {

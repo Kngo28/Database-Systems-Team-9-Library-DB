@@ -63,35 +63,59 @@ export default function NotificationsPage() {
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  const handleMarkAsRead = (notificationId) => {
-    setNotifications((prev) =>
-      prev.map((notification) =>
-        notification.Notification_ID === notificationId
-          ? { ...notification, is_read: 1 }
-          : notification
-      )
-    );
+  const handleMarkAsRead = async (notificationId) => {
+    try {
+      const response = await apiFetch(`/api/notifications/${notificationId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    // Later:
-    // await apiFetch(`/api/notifications/${notificationId}/read`, {
-    //   method: "PATCH",
-    //   headers: { Authorization: `Bearer ${token}` },
-    // });
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error(data.error || "Failed to mark notification as read.");
+        return;
+      }
+
+      setNotifications((prev) =>
+        prev.map((notification) =>
+          notification.Notification_ID === notificationId
+            ? { ...notification, is_read: 1 }
+            : notification
+        )
+      );
+    } catch (err) {
+      console.error("Unable to mark notification as read.", err);
+    }
   };
 
-  const handleMarkAllAsRead = () => {
-    setNotifications((prev) =>
-      prev.map((notification) => ({
-        ...notification,
-        is_read: 1,
-      }))
-    );
+  const handleMarkAllAsRead = async () => {
+    try {
+      const response = await apiFetch("/api/notifications/read-all", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-    // Later:
-    // await apiFetch(`/api/notifications/read-all`, {
-    //   method: "PATCH",
-    //   headers: { Authorization: `Bearer ${token}` },
-    // });
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error(data.error || "Failed to mark all notifications as read.");
+        return;
+      }
+
+      setNotifications((prev) =>
+        prev.map((notification) => ({
+          ...notification,
+          is_read: 1,
+        }))
+      );
+    } catch (err) {
+      console.error("Unable to mark all notifications as read.", err);
+    }
   };
 
   if (loading) {
