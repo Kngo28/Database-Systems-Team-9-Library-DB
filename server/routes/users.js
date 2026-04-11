@@ -123,6 +123,9 @@ async function updateUserProfile(req, res) {
                 } = data;
 
                 const personId = req.user.person_id;
+                const formattedBirthday = birthday
+                    ? birthday.split("T")[0]
+                    : null;
 
                 const query = `
                     UPDATE Person
@@ -143,7 +146,7 @@ async function updateUserProfile(req, res) {
                     username,
                     email,
                     phoneNumber || null,
-                    birthday || null,
+                    formattedBirthday,
                     streetAddress || null,
                     zipCode || null,
                     personId
