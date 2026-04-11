@@ -5,7 +5,7 @@ async function getAllStaff(req, res) {
     try {
         const [rows] = await db.query(
             `SELECT p.Person_ID, p.First_name, p.Last_name, p.username, p.email,
-                    p.phone_number, p.account_status, s.Staff_permissions
+                    p.phone_number, p.birthday, p.account_status, s.Staff_permissions
              FROM Person p
              JOIN Staff s ON p.Person_ID = s.Person_ID
              ORDER BY s.Staff_permissions ASC, p.Last_name ASC`
