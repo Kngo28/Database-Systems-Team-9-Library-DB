@@ -17,7 +17,7 @@ export default function UserLookupPage() {
   const isStaff    = userType === "staff";
   const isAdmin    = userType === "admin";
 
-  const [searchType,  setSearchType]  = useState("personId");
+  const [searchType,  setSearchType]  = useState("firstName");
   const [searchValue, setSearchValue] = useState("");
   const [userRecord,  setUserRecord]  = useState(null);
   const [summary,     setSummary]     = useState(null);
@@ -155,12 +155,12 @@ export default function UserLookupPage() {
                 onChange={(e) => setSearchType(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-4 py-3"
               >
-                <option value="personId">Person ID</option>
-                <option value="username">Username</option>
-                <option value="email">Email</option>
                 <option value="firstName">First Name</option>
                 <option value="lastName">Last Name</option>
+                <option value="email">Email</option>
                 <option value="phone">Phone Number</option>
+                <option value="username">Username</option>
+                <option value="personId">Person ID</option>
               </select>
             </div>
 
@@ -273,8 +273,8 @@ export default function UserLookupPage() {
                                   <td className="py-2 pr-4">{fmtDate(b.returnBy_date)}</td>
                                   <td className="py-2">
                                     {active
-                                      ? <Badge label={overdue ? "Overdue" : "Checked Out"} color={overdue ? "red" : "green"} />
-                                      : <Badge label="Returned" color="gray" />}
+                                      ? <Badge label={overdue ? "Overdue" : "Checked Out"} color={overdue ? "red" : "yellow"} />
+                                      : <Badge label="Returned" color="green" />}
                                   </td>
                                 </tr>
                               );
@@ -315,7 +315,7 @@ export default function UserLookupPage() {
                                 <td className="py-2 pr-4">
                                   <Badge
                                     label={HOLD_STATUS[h.hold_status] ?? "Unknown"}
-                                    color={h.hold_status === 2 ? "green" : h.hold_status === 1 ? "blue" : "gray"}
+                                    color={h.hold_status === 3 ? "green" : h.hold_status === 2 ? "green" : h.hold_status === 1 ? "yellow" : "red"}
                                   />
                                 </td>
                                 <td className="py-2 pr-4">#{h.queue_status + 1}</td>
@@ -401,6 +401,7 @@ const BADGE_COLORS = {
   green:  "bg-green-100 text-green-800",
   blue:   "bg-blue-100 text-blue-800",
   red:    "bg-red-100 text-red-800",
+  yellow: "bg-yellow-100 text-yellow-800",
   purple: "bg-purple-100 text-purple-800",
   gray:   "bg-gray-100 text-gray-600",
 };
