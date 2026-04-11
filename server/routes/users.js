@@ -19,15 +19,31 @@ async function lookupUser(req, res) {
             }
         }
 
-        // name searches return a list to pick from, not full details
-        if (searchBy === 'firstName' || searchBy === 'lastName') {
-            const column = searchBy === 'firstName' ? 'First_name' : 'Last_name';
-            const [rows] = await db.query(
-                `SELECT Person_ID, First_name, Last_name, email, username
-                 FROM Person WHERE ${column} LIKE ?
-                 ORDER BY Last_name, First_name LIMIT 50`,
-                [`%${value}%`]
-            );
+        // multi-field search — returns a list to pick from
+        if (searchBy === 'firstName' || searchBy === 'lastName' || searchBy === 'all') {
+            let query, queryParams;
+            if (searchBy === 'all') {
+                query = `
+                    SELECT Person_ID, First_name, Last_name, email, username
+                    FROM Person
+                    WHERE First_name   LIKE ?
+                       OR Last_name    LIKE ?
+                       OR username     LIKE ?
+                       OR email        LIKE ?
+                       OR phone_number LIKE ?
+                       OR CAST(Person_ID AS CHAR) LIKE ?
+                    ORDER BY Last_name, First_name LIMIT 50
+                `;
+                const like = `%${value}%`;
+                queryParams = [like, like, like, like, like, like];
+            } else {
+                const column = searchBy === 'firstName' ? 'First_name' : 'Last_name';
+                query = `SELECT Person_ID, First_name, Last_name, email, username
+                         FROM Person WHERE ${column} LIKE ?
+                         ORDER BY Last_name, First_name LIMIT 50`;
+                queryParams = [`%${value}%`];
+            }
+            const [rows] = await db.query(query, queryParams);
             if (rows.length === 0) {
                 res.writeHead(404);
                 return res.end(JSON.stringify({ error: 'No users found' }));

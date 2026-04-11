@@ -17,7 +17,6 @@ export default function UserLookupPage() {
   const isStaff    = userType === "staff";
   const isAdmin    = userType === "admin";
 
-  const [searchType,  setSearchType]  = useState("firstName");
   const [searchValue, setSearchValue] = useState("");
   const [userRecord,  setUserRecord]  = useState(null);
   const [summary,     setSummary]     = useState(null);
@@ -88,7 +87,7 @@ export default function UserLookupPage() {
 
     try {
       const response = await apiFetch(
-        `/api/users/lookup?searchBy=${searchType}&value=${encodeURIComponent(searchValue)}`,
+        `/api/users/lookup?searchBy=all&value=${encodeURIComponent(searchValue)}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const data = await response.json();
@@ -96,7 +95,7 @@ export default function UserLookupPage() {
 
       if (data.results) {
         setResults(data.results);
-        setMessage(`${data.results.length} result${data.results.length !== 1 ? "s" : ""} found. Select a user to view details.`);
+        setMessage(`${data.results.length} result${data.results.length !== 1 ? "s" : ""} found.`);
       } else {
         setUserRecord(data.person);
         setSummary(data.summary);
@@ -147,37 +146,14 @@ export default function UserLookupPage() {
           {/* ── Search ── */}
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-green-900">Search User</h2>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Search By</label>
-              <select
-                value={searchType}
-                onChange={(e) => setSearchType(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3"
-              >
-                <option value="firstName">First Name</option>
-                <option value="lastName">Last Name</option>
-                <option value="email">Email</option>
-                <option value="phone">Phone Number</option>
-                <option value="username">Username</option>
-                <option value="personId">Person ID</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Search Value <span className="text-red-600">*</span>
-              </label>
-              <input
-                type="text"
-                value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                placeholder={`Enter ${searchType}`}
-                className="w-full border border-gray-300 rounded-lg px-4 py-3"
-              />
-            </div>
-
+            <input
+              type="text"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              placeholder="Search by name, username, email, phone, or ID..."
+              className="w-full border border-gray-300 rounded-lg px-4 py-3"
+            />
             <button
               className="bg-green-800 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-900"
               onClick={handleSearch}
@@ -381,9 +357,6 @@ export default function UserLookupPage() {
             </p>
           )}
 
-          <p className="text-sm text-gray-500 pt-2">
-            <span className="text-red-600 font-semibold">*</span> indicates a required field.
-          </p>
         </div>
       </div>
     </div>
