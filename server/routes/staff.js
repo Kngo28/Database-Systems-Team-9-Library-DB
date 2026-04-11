@@ -1,4 +1,5 @@
-const db = require('../db');
+const db     = require('../db');
+const bcrypt = require('bcrypt');
 
 async function getAllStaff(req, res) {
     try {
@@ -66,7 +67,7 @@ async function updateStaffInfo(req, res) {
     req.on('end', async () => {
         try {
             const personId = req.url.split('/')[3];
-            const { first_name, last_name, email, phone_number, username } = JSON.parse(body);
+            const { first_name, last_name, email, phone_number, username, birthday, password } = JSON.parse(body);
 
             const [staffRows] = await db.query(
                 `SELECT Person_ID FROM Staff WHERE Person_ID = ?`, [personId]
@@ -88,15 +89,19 @@ async function updateStaffInfo(req, res) {
                 }
             }
 
+            const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
+
             await db.query(
                 `UPDATE Person SET
                     First_name   = COALESCE(?, First_name),
                     Last_name    = COALESCE(?, Last_name),
                     email        = COALESCE(?, email),
-                    phone_number = ?,
-                    username     = COALESCE(?, username)
+                    phone_number = COALESCE(?, phone_number),
+                    username     = COALESCE(?, username),
+                    birthday     = COALESCE(?, birthday),
+                    password     = COALESCE(?, password)
                  WHERE Person_ID = ?`,
-                [first_name || null, last_name || null, email || null, phone_number || null, username || null, personId]
+                [first_name || null, last_name || null, email || null, phone_number || null, username || null, birthday || null, hashedPassword, personId]
             );
 
             res.writeHead(200);

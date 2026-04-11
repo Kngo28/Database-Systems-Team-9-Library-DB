@@ -25,6 +25,7 @@ export default function ManageStaffPage() {
   const [editMessage, setEditMessage] = useState("");
 
   // ── Register ─────────────────────────────────────────────────────────────
+  const [registerOpen,    setRegisterOpen]    = useState(false);
   const [registerForm,    setRegisterForm]    = useState(EMPTY_REGISTER_FORM);
   const [registerMessage, setRegisterMessage] = useState("");
   const [registerLoading, setRegisterLoading] = useState(false);
@@ -54,11 +55,25 @@ export default function ManageStaffPage() {
       email:        member.email,
       username:     member.username,
       phone_number: member.phone_number || "",
+      birthday:     member.birthday ? member.birthday.split("T")[0] : "",
+      password:     "",
     });
     setEditMessage("");
   };
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRegex = /^\+?[\d\s\-().]{7,15}$/;
+
   const handleSaveEdit = async () => {
+    setEditMessage("");
+
+    if (!editForm.first_name.trim()) return setEditMessage("First name is required.");
+    if (!editForm.last_name.trim())  return setEditMessage("Last name is required.");
+    if (!emailRegex.test(editForm.email)) return setEditMessage("Please enter a valid email address.");
+    if (!phoneRegex.test(editForm.phone_number)) return setEditMessage("Please enter a valid phone number.");
+    if (!editForm.birthday) return setEditMessage("Birthday is required.");
+    if (new Date(editForm.birthday) > new Date()) return setEditMessage("Birthday cannot be in the future.");
+
     setEditLoading(true);
     setEditMessage("");
     try {
@@ -83,6 +98,19 @@ export default function ManageStaffPage() {
   const handleRegister = async (e) => {
     e.preventDefault();
     setRegisterMessage("");
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?[\d\s\-().]{7,15}$/;
+
+    if (!emailRegex.test(registerForm.email))
+      return setRegisterMessage("Please enter a valid email address.");
+    if (!phoneRegex.test(registerForm.phone_number))
+      return setRegisterMessage("Please enter a valid phone number.");
+    if (!registerForm.birthday)
+      return setRegisterMessage("Birthday is required.");
+    if (new Date(registerForm.birthday) > new Date())
+      return setRegisterMessage("Birthday cannot be in the future.");
+
     setRegisterLoading(true);
     try {
       const r    = await apiFetch("/api/auth/register-staff", {
@@ -94,6 +122,7 @@ export default function ManageStaffPage() {
       if (!r.ok) { setRegisterMessage(data.error || "Failed to register staff."); return; }
       setRegisterMessage("Staff member registered successfully.");
       setRegisterForm(EMPTY_REGISTER_FORM);
+      setRegisterOpen(false);
       fetchStaff();
     } catch {
       setRegisterMessage("Unable to connect to the server.");
@@ -125,16 +154,71 @@ export default function ManageStaffPage() {
           ← Back
         </button>
 
-        <h1 className="text-3xl font-bold text-green-900 mb-2">Manage Staff</h1>
-        <p className="text-gray-600 mb-8">Search for a staff member to edit their profile, or register a new one.</p>
+        <div className="space-y-6 max-w-5xl">
 
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
+          <div className="flex items-end justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-green-900">Manage Staff</h1>
+              <p className="text-gray-600 mt-1">Search for a staff member to edit their profile, or register a new one.</p>
+            </div>
+            <button
+              onClick={() => { setRegisterOpen((o) => !o); setRegisterMessage(""); }}
+              className="bg-green-800 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-green-900 shrink-0 ml-4"
+            >
+              + Register Staff
+            </button>
+          </div>
 
-          {/* ── Left panel: search + edit ─────────────────────────────────── */}
-          <div className="flex-1 space-y-6">
+          {/* ── Register card ── */}
+          {registerOpen && (
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4">
+              <h2 className="text-xl font-semibold text-green-900">Register New Staff</h2>
+              <button
+                onClick={() => { setRegisterOpen(false); setRegisterMessage(""); }}
+                className="text-gray-400 hover:text-gray-600 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-6 pb-6">
+              <form onSubmit={handleRegister} className="space-y-4 pt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="First Name" required>
+                    <input type="text" value={registerForm.first_name} onChange={(e) => setRegisterForm({ ...registerForm, first_name: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-3" required />
+                  </Field>
+                  <Field label="Last Name" required>
+                    <input type="text" value={registerForm.last_name} onChange={(e) => setRegisterForm({ ...registerForm, last_name: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-3" required />
+                  </Field>
+                  <Field label="Email" required>
+                    <input type="email" value={registerForm.email} onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-3" required />
+                  </Field>
+                  <Field label="Username" required>
+                    <input type="text" value={registerForm.username} onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-3" required />
+                  </Field>
+                  <Field label="Password" required>
+                    <input type="password" value={registerForm.password} onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-3" required />
+                  </Field>
+                  <Field label="Phone Number" required>
+                    <input type="text" value={registerForm.phone_number} onChange={(e) => setRegisterForm({ ...registerForm, phone_number: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-3" required />
+                  </Field>
+                  <Field label="Birthday" required>
+                    <input type="date" value={registerForm.birthday} onChange={(e) => setRegisterForm({ ...registerForm, birthday: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-3" required />
+                  </Field>
+                </div>
+                {registerMessage && (
+                  <p className={`text-sm font-medium ${registerMessage.includes("success") ? "text-green-700" : "text-red-600"}`}>{registerMessage}</p>
+                )}
+                <button type="submit" disabled={registerLoading} className="w-full bg-green-900 text-white py-3 rounded-lg font-semibold hover:bg-green-800 disabled:opacity-50">
+                  {registerLoading ? "Registering..." : "Register Staff Member"}
+                </button>
+              </form>
+            </div>
+          </div>
+          )}
 
-            {/* Search */}
-            <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
+          {/* ── Search + Edit ── */}
+          <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
               <h2 className="text-xl font-semibold text-green-900">Search Staff</h2>
               <input
                 type="text"
@@ -147,8 +231,8 @@ export default function ManageStaffPage() {
               {loadingStaff && <p className="text-sm text-gray-400 italic">Loading staff...</p>}
               {listError    && <p className="text-sm text-red-600">{listError}</p>}
 
-              {!loadingStaff && !listError && searchQuery && (
-                <div className="divide-y border rounded-lg overflow-hidden">
+              {!loadingStaff && !listError && (
+                <div className="divide-y border rounded-lg overflow-hidden max-h-[60vh] overflow-y-auto">
                   {filtered.length === 0 ? (
                     <p className="px-4 py-3 text-sm text-gray-400 italic">No staff match your search.</p>
                   ) : (
@@ -167,173 +251,93 @@ export default function ManageStaffPage() {
                   )}
                 </div>
               )}
-            </div>
 
-            {/* Edit panel */}
-            {selected && (
-              <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h2 className="text-xl font-semibold text-green-900">Edit Staff Profile</h2>
-                    <p className="text-sm text-gray-500">
-                      {selected.First_name} {selected.Last_name} · ID {selected.Person_ID} ·{" "}
-                      <span className="font-semibold text-green-800 uppercase text-xs tracking-wide">
-                        {Number(selected.Staff_permissions) === 2 ? "Admin" : "Staff"}
-                      </span>
-                    </p>
+              {/* Edit panel */}
+              {selected && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="text-xl font-semibold text-green-900">Edit Staff Profile</h2>
+                      <p className="text-sm text-gray-500">
+                        {selected.First_name} {selected.Last_name} · ID {selected.Person_ID} ·{" "}
+                        <span className="font-semibold text-green-800 uppercase text-xs tracking-wide">
+                          {Number(selected.Staff_permissions) === 2 ? "Admin" : "Staff"}
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => { setSelected(null); setEditMessage(""); }}
+                      className="text-sm text-gray-400 hover:text-gray-600"
+                    >
+                      ✕
+                    </button>
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="First Name" required>
+                      <input
+                        type="text"
+                        value={editForm.first_name}
+                        onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3"
+                        required
+                      />
+                    </Field>
+                    <Field label="Last Name" required>
+                      <input
+                        type="text"
+                        value={editForm.last_name}
+                        onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3"
+                        required
+                      />
+                    </Field>
+                    <Field label="Email" required>
+                      <input
+                        type="email"
+                        value={editForm.email}
+                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3"
+                        required
+                      />
+                    </Field>
+                    <Field label="Phone Number" required>
+                      <input
+                        type="text"
+                        value={editForm.phone_number}
+                        onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3"
+                        required
+                      />
+                    </Field>
+                    <Field label="Birthday" required>
+                      <input
+                        type="date"
+                        value={editForm.birthday}
+                        onChange={(e) => setEditForm({ ...editForm, birthday: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3"
+                        required
+                      />
+                    </Field>
+                  </div>
+
+                  {editMessage && (
+                    <p className={`text-sm font-medium ${editMessage.includes("success") ? "text-green-700" : "text-red-600"}`}>
+                      {editMessage}
+                    </p>
+                  )}
+
                   <button
-                    onClick={() => { setSelected(null); setEditMessage(""); }}
-                    className="text-sm text-gray-400 hover:text-gray-600"
+                    onClick={handleSaveEdit}
+                    disabled={editLoading}
+                    className="w-full bg-green-900 text-white py-3 rounded-lg font-semibold hover:bg-green-800 disabled:opacity-50"
                   >
-                    ✕
+                    {editLoading ? "Saving..." : "Save Changes"}
                   </button>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="First Name">
-                    <input
-                      type="text"
-                      value={editForm.first_name}
-                      onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                    />
-                  </Field>
-                  <Field label="Last Name">
-                    <input
-                      type="text"
-                      value={editForm.last_name}
-                      onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                    />
-                  </Field>
-                  <Field label="Username">
-                    <input
-                      type="text"
-                      value={editForm.username}
-                      onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                    />
-                  </Field>
-                  <Field label="Email">
-                    <input
-                      type="email"
-                      value={editForm.email}
-                      onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                    />
-                  </Field>
-                  <Field label="Phone Number">
-                    <input
-                      type="text"
-                      value={editForm.phone_number}
-                      onChange={(e) => setEditForm({ ...editForm, phone_number: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                    />
-                  </Field>
-                </div>
-
-                {editMessage && (
-                  <p className={`text-sm font-medium ${editMessage.includes("success") ? "text-green-700" : "text-red-600"}`}>
-                    {editMessage}
-                  </p>
-                )}
-
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={editLoading}
-                  className="w-full bg-green-900 text-white py-3 rounded-lg font-semibold hover:bg-green-800 disabled:opacity-50"
-                >
-                  {editLoading ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            )}
+              )}
           </div>
 
-          {/* ── Right panel: register ─────────────────────────────────────── */}
-          <div className="w-full lg:w-96 shrink-0">
-            <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
-              <h2 className="text-xl font-semibold text-green-900">Register New Staff</h2>
-
-              <form onSubmit={handleRegister} className="space-y-4">
-                <Field label="First Name" required>
-                  <input
-                    type="text"
-                    value={registerForm.first_name}
-                    onChange={(e) => setRegisterForm({ ...registerForm, first_name: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                    required
-                  />
-                </Field>
-                <Field label="Last Name" required>
-                  <input
-                    type="text"
-                    value={registerForm.last_name}
-                    onChange={(e) => setRegisterForm({ ...registerForm, last_name: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                    required
-                  />
-                </Field>
-                <Field label="Email" required>
-                  <input
-                    type="email"
-                    value={registerForm.email}
-                    onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                    required
-                  />
-                </Field>
-                <Field label="Username" required>
-                  <input
-                    type="text"
-                    value={registerForm.username}
-                    onChange={(e) => setRegisterForm({ ...registerForm, username: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                    required
-                  />
-                </Field>
-                <Field label="Password" required>
-                  <input
-                    type="password"
-                    value={registerForm.password}
-                    onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                    required
-                  />
-                </Field>
-                <Field label="Phone Number">
-                  <input
-                    type="text"
-                    value={registerForm.phone_number}
-                    onChange={(e) => setRegisterForm({ ...registerForm, phone_number: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                  />
-                </Field>
-                <Field label="Birthday">
-                  <input
-                    type="date"
-                    value={registerForm.birthday}
-                    onChange={(e) => setRegisterForm({ ...registerForm, birthday: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3"
-                  />
-                </Field>
-
-                {registerMessage && (
-                  <p className={`text-sm font-medium ${registerMessage.includes("success") ? "text-green-700" : "text-red-600"}`}>
-                    {registerMessage}
-                  </p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={registerLoading}
-                  className="w-full bg-green-900 text-white py-3 rounded-lg font-semibold hover:bg-green-800 disabled:opacity-50"
-                >
-                  {registerLoading ? "Registering..." : "Register Staff Member"}
-                </button>
-              </form>
-            </div>
-          </div>
 
         </div>
       </div>
