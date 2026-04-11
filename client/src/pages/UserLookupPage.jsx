@@ -109,7 +109,6 @@ export default function UserLookupPage() {
       } else {
         setUserRecord(data.person);
         setSummary(data.summary);
-        setMessage("User record loaded.");
       }
     } catch {
       setMessage("Unable to connect to the server.");
@@ -128,7 +127,6 @@ export default function UserLookupPage() {
       if (!response.ok) { setMessage(data.error || "Failed to load user record."); return; }
       setUserRecord(data.person);
       setSummary(data.summary);
-      setMessage("User record loaded.");
     } catch {
       setMessage("Unable to connect to the server.");
     }
@@ -159,18 +157,11 @@ export default function UserLookupPage() {
             <input
               type="text"
               value={searchValue}
-              onChange={(e) => { setSearchValue(e.target.value); setResults(null); setMessage(""); }}
+              onChange={(e) => { setSearchValue(e.target.value); setResults(null); setMessage(""); setUserRecord(null); setSummary(null); }}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               placeholder="Search by name, username, email, phone, or ID..."
               className="w-full border border-gray-300 rounded-lg px-4 py-3"
             />
-            <button
-              className="bg-green-800 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-900"
-              onClick={handleSearch}
-            >
-              Search
-            </button>
-
             {/* ── User list (filtered live or API results) ── */}
             <div className="divide-y border rounded-lg overflow-hidden max-h-[60vh] overflow-y-auto">
               {usersLoading ? (
@@ -216,7 +207,15 @@ export default function UserLookupPage() {
 
             {/* User Details */}
             <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-green-900">User Details</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-green-900">User Details</h2>
+                <button
+                  onClick={() => { setUserRecord(null); setSummary(null); setMessage(""); }}
+                  className="text-gray-400 hover:text-gray-600 text-sm"
+                >
+                  ✕
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <ReadOnlyField label="Username"       value={userRecord.username} />
                 <ReadOnlyField label="Person ID"      value={userRecord.Person_ID} />
