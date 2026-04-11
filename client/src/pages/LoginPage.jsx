@@ -116,9 +116,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-6">
-          <Banner message={message} onDismiss={() => setMessage({ text: "", success: true })} />
-        </div>
+        <Banner message={message} onDismiss={() => setMessage({ text: "", success: true })} />
 
         <p className="text-center text-sm text-gray-600 mt-4">
           Don't have an account?{" "}
