@@ -288,8 +288,22 @@ const server = http.createServer((req, res) => {
             requireAdmin(req, res, () => {
                 reports.getPatronsActivityReport(req, res);
             });
-        }); 
-        
+        });
+    // admin-only — revenue report KPIs (must come before /api/reports/revenue)
+    } else if (req.method === 'GET' && req.url.startsWith('/api/reports/revenue-overview')) {
+        verifyToken(req, res, () => {
+            requireAdmin(req, res, () => {
+                reports.getRevenueOverview(req, res);
+            });
+        });
+    // admin-only — revenue report records
+    } else if (req.method === 'GET' && req.url.startsWith('/api/reports/revenue')) {
+        verifyToken(req, res, () => {
+            requireAdmin(req, res, () => {
+                reports.getRevenueReport(req, res);
+            });
+        });
+
     }
     else {
         res.writeHead(404);

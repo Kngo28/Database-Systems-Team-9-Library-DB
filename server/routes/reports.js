@@ -45,6 +45,12 @@ const PATRON_SORTS = [
     'last_borrow_date',
 ];
 
+const REVENUE_SORTS = [
+    'date_owed', 'fee_amount', 'fee_type', 'fee_status',
+    'Payment_Date', 'First_name', 'Last_name', 'role',
+    'Item_name', 'Item_type',
+];
+
 const STOCK_RULES = {
     healthyBorrowingRate: 3,
     healthyUtilization: 60,
@@ -304,6 +310,19 @@ function getPatronFilters(searchParams) {
         withUnpaidOnly: parseBoolean(searchParams.get('withUnpaidOnly')),
         limit: parsePositiveInt(searchParams.get('limit')),
         orderBy: pickSort(searchParams, PATRON_SORTS, 'borrow_count'),
+        orderDirection: parseSortDirection(searchParams.get('direction')),
+    };
+}
+
+function getRevenueFilters(searchParams) {
+    return {
+        ...getPeriodFilters(searchParams),
+        role: parseOptionalInt(searchParams.get('role')),
+        feeType: parseMappedInt(searchParams.get('feeType'), [1, 2, 3]),
+        itemType: parseMappedInt(searchParams.get('itemType'), [1, 2, 3]),
+        paidStatus: parseMappedInt(searchParams.get('paidStatus'), [1, 2]),
+        limit: parsePositiveInt(searchParams.get('limit')),
+        orderBy: pickSort(searchParams, REVENUE_SORTS, 'date_owed'),
         orderDirection: parseSortDirection(searchParams.get('direction')),
     };
 }
@@ -809,9 +828,104 @@ async function getPatronsActivityReport(req, res) {
     }
 }
 
+async function getRevenueReport(req, res) {
+    const filters = getRevenueFilters(getSearchParams(req));
+    const rangeParams = getDateRangeParams(filters);
+
+    try {
+        const [rows] = await db.query(
+            `SELECT
+                f.Fine_ID,
+                DATE(f.date_owed) AS date_owed,
+                f.fee_type,
+                f.fee_amount,
+                f.status AS fee_status,
+                fp.Payment_Date,
+                f.Person_ID,
+                p.First_name,
+                p.Last_name,
+                p.role,
+                i.Item_ID,
+                i.Item_name,
+                i.Item_type
+            FROM FeeOwed f
+            JOIN Person p ON f.Person_ID = p.Person_ID
+            JOIN BorrowedItem bi ON f.BorrowedItem_ID = bi.BorrowedItem_ID
+            JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
+            JOIN Item i ON cp.Item_ID = i.Item_ID
+            LEFT JOIN FeePayment fp ON f.Fine_ID = fp.Fine_ID
+            WHERE ${getPeriodRangeClause('f.date_owed', true)}
+              AND (? IS NULL OR p.role = ?)
+              AND (? IS NULL OR f.fee_type = ?)
+              AND (? IS NULL OR i.Item_type = ?)
+              AND (? IS NULL OR f.status = ?)
+            ORDER BY ${filters.orderBy} ${filters.orderDirection}, f.Fine_ID DESC
+            LIMIT ?`,
+            [
+                ...rangeParams,
+                filters.role, filters.role,
+                filters.feeType, filters.feeType,
+                filters.itemType, filters.itemType,
+                filters.paidStatus, filters.paidStatus,
+                filters.limit,
+            ]
+        );
+        sendJson(res, 200, rows);
+    } catch (err) {
+        sendReportError(res, 'revenue report', err);
+    }
+}
+
+async function getRevenueOverview(req, res) {
+    const filters = getPeriodFilters(getSearchParams(req));
+    const rangeParams = getDateRangeParams(filters);
+
+    try {
+        const [[kpis]] = await db.query(
+            `SELECT
+                COALESCE(SUM(CASE WHEN fp.Fine_ID IS NOT NULL THEN f.fee_amount ELSE 0 END), 0) AS revenue_collected,
+                COALESCE(SUM(f.fee_amount), 0) AS revenue_expected,
+                COALESCE(SUM(CASE WHEN fp.Fine_ID IS NULL THEN f.fee_amount ELSE 0 END), 0) AS revenue_backlog,
+                COUNT(*) AS total_fees,
+                COALESCE(SUM(CASE WHEN fp.Fine_ID IS NULL THEN 1 ELSE 0 END), 0) AS unpaid_fee_count
+            FROM FeeOwed f
+            LEFT JOIN FeePayment fp ON f.Fine_ID = fp.Fine_ID
+            WHERE ${getPeriodRangeClause('f.date_owed', true)}`,
+            rangeParams
+        );
+
+        const [topItemRows] = await db.query(
+            `SELECT i.Item_name, COALESCE(SUM(f.fee_amount), 0) AS total_fees_amount
+            FROM FeeOwed f
+            JOIN BorrowedItem bi ON f.BorrowedItem_ID = bi.BorrowedItem_ID
+            JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
+            JOIN Item i ON cp.Item_ID = i.Item_ID
+            WHERE ${getPeriodRangeClause('f.date_owed', true)}
+            GROUP BY i.Item_ID, i.Item_name
+            ORDER BY total_fees_amount DESC
+            LIMIT 1`,
+            rangeParams
+        );
+
+        sendJson(res, 200, {
+            revenue_collected: Number(kpis.revenue_collected ?? 0),
+            revenue_expected: Number(kpis.revenue_expected ?? 0),
+            revenue_backlog: Number(kpis.revenue_backlog ?? 0),
+            total_fees: Number(kpis.total_fees ?? 0),
+            unpaid_fee_count: Number(kpis.unpaid_fee_count ?? 0),
+            top_item_name: topItemRows[0]?.Item_name ?? null,
+            top_item_fees: Number(topItemRows[0]?.total_fees_amount ?? 0),
+        });
+    } catch (err) {
+        sendReportError(res, 'revenue overview', err);
+    }
+}
+
 module.exports = {
     getReportsOverview,
     getPopularityReport,
     getFinesReport,
     getPatronsActivityReport,
+    getRevenueReport,
+    getRevenueOverview,
 };

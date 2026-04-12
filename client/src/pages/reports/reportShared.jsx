@@ -66,6 +66,19 @@ export const ITEM_TYPE_OPTIONS = [
   { label: "Devices", value: "3" },
 ];
 
+export const FEE_TYPE_OPTIONS = [
+  { label: "All", value: "All" },
+  { label: "Late", value: "1" },
+  { label: "Damage", value: "2" },
+  { label: "Loss", value: "3" },
+];
+
+export const FEE_STATUS_OPTIONS = [
+  { label: "All", value: "All" },
+  { label: "Paid", value: "2" },
+  { label: "Unpaid", value: "1" },
+];
+
 export const DEFAULT_PERIOD_TYPE = "quarter";
 const FIELD_CLASS_NAME = "w-full rounded border border-gray-300 bg-white px-3 py-2";
 
@@ -773,6 +786,10 @@ function getRowKey(reportType, row, index) {
     return row.Item_ID ?? index;
   }
 
+  if (reportType === "revenue") {
+    return `revenue-${row.Fine_ID ?? index}`;
+  }
+
   if (reportType === "fees") {
     return `fee-${row.Person_ID ?? index}`;
   }
@@ -845,6 +862,15 @@ export function formatAccountStatus(status) {
 
 export function formatBorrowStatus(status) {
   return Number(status) === 1 ? "Good Standing" : "Restricted";
+}
+
+export function formatFeeType(type) {
+  const labels = { 1: "Late", 2: "Damage", 3: "Loss" };
+  return labels[Number(type)] ?? "Unknown";
+}
+
+export function formatFeeStatus(status) {
+  return Number(status) === 2 ? "Paid" : "Unpaid";
 }
 
 export function formatNumber(value) {

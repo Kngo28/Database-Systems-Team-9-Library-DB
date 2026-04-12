@@ -52,7 +52,7 @@ const REPORT_DEFINITIONS = {
     TableComponent: PopularityReportsTable,
     getColumns: getPopularityColumns,
   },
-  fees: {
+  revenue: {
     ...feesReportPage,
     FiltersComponent: FeesReportsFilters,
     TableComponent: FeesReportsTable,
@@ -204,6 +204,8 @@ export default function ReportsPage() {
   const [data, setData] = useState([]);
   const [overview, setOverview] = useState(EMPTY_OVERVIEW);
   const [overviewLoading, setOverviewLoading] = useState(true);
+  const [revenueKpis, setRevenueKpis] = useState(null);
+  const [revenueKpisLoading, setRevenueKpisLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [exportError, setExportError] = useState("");
@@ -238,6 +240,20 @@ export default function ReportsPage() {
       currentFilters.customEnd,
     ]
   );
+
+  const revenueKpisUrl = useMemo(() => {
+    if (reportType !== "revenue") return null;
+    const params = new URLSearchParams();
+    appendPeriodParams(params, currentFilters);
+    const query = params.toString();
+    return `/api/reports/revenue-overview${query ? `?${query}` : ""}`;
+  }, [
+    reportType,
+    currentFilters.periodType,
+    currentFilters.periodValue,
+    currentFilters.customStart,
+    currentFilters.customEnd,
+  ]);
 
   function updateCurrentSort(value) {
     updateScopedReportState(setSortByReport, reportType, value);
@@ -318,6 +334,30 @@ export default function ReportsPage() {
     token,
     overviewUrl,
   ]);
+
+  useEffect(() => {
+    if (!revenueKpisUrl || !token) {
+      setRevenueKpis(null);
+      return;
+    }
+
+    async function fetchRevenueKpis() {
+      setRevenueKpisLoading(true);
+      try {
+        const response = await apiFetch(revenueKpisUrl, createAuthOptions(token));
+        const json = await response.json();
+        if (!response.ok) throw new Error(json.error || "Failed to load revenue KPIs");
+        setRevenueKpis(json);
+      } catch (err) {
+        console.error("Failed to fetch revenue KPIs:", err);
+        setRevenueKpis(null);
+      } finally {
+        setRevenueKpisLoading(false);
+      }
+    }
+
+    fetchRevenueKpis();
+  }, [token, revenueKpisUrl]);
 
   if (!isAdmin) {
     return <Navigate to="/login" replace />;
@@ -441,25 +481,29 @@ export default function ReportsPage() {
           </button>
         </div>
 
-        <div className="mx-auto mb-6 grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <InventoryOverviewCard overview={overview} overviewLoading={overviewLoading} />
-          <OverviewStatCard
-            label={`Borrows Total (${reportPeriodLabel})`}
-            value={overviewLoading ? "Loading..." : formatNumber(overview.total_borrowed)}
-          />
-          <OverviewStatCard
-            label={`Active Borrows (${reportPeriodLabel})`}
-            value={overviewLoading ? "Loading..." : formatNumber(overview.total_active_borrows)}
-          />
-          <OverviewStatCard
-            label={`Fees Total (${reportPeriodLabel})`}
-            value={overviewLoading ? "Loading..." : formatNumber(overview.total_fees)}
-          />
-          <OverviewStatCard
-            label={`Revenue Total (${reportPeriodLabel})`}
-            value={overviewLoading ? "Loading..." : formatMoney(overview.total_revenue)}
-          />
-        </div>
+        {reportType === "revenue" ? (
+          <RevenueKPICards kpis={revenueKpis} loading={revenueKpisLoading} periodLabel={reportPeriodLabel} />
+        ) : (
+          <div className="mx-auto mb-6 grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <InventoryOverviewCard overview={overview} overviewLoading={overviewLoading} />
+            <OverviewStatCard
+              label={`Borrows Total (${reportPeriodLabel})`}
+              value={overviewLoading ? "Loading..." : formatNumber(overview.total_borrowed)}
+            />
+            <OverviewStatCard
+              label={`Active Borrows (${reportPeriodLabel})`}
+              value={overviewLoading ? "Loading..." : formatNumber(overview.total_active_borrows)}
+            />
+            <OverviewStatCard
+              label={`Fees Total (${reportPeriodLabel})`}
+              value={overviewLoading ? "Loading..." : formatNumber(overview.total_fees)}
+            />
+            <OverviewStatCard
+              label={`Revenue Total (${reportPeriodLabel})`}
+              value={overviewLoading ? "Loading..." : formatMoney(overview.total_revenue)}
+            />
+          </div>
+        )}
 
         <div className="bg-white rounded-xl border border-gray-200 shadow-md p-4 mb-6">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
@@ -500,6 +544,7 @@ export default function ReportsPage() {
             hiddenColumnKeys={hiddenColumnKeys}
             onSortChange={handleColumnSort}
             onColumnVisibilityChange={handleColumnVisibilityChange}
+            filters={currentFilters}
           />
         )}
       </div>
@@ -534,6 +579,48 @@ function OverviewStatCard({ label, value }) {
     <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-center shadow-sm">
       <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
       <div className="mt-2 text-2xl font-bold text-green-900">{value}</div>
+    </div>
+  );
+}
+
+function RevenueKPICards({ kpis, loading, periodLabel }) {
+  const fmt = (v) => (loading || !kpis ? "Loading..." : formatMoney(v));
+  const fmtN = (v) => (loading || !kpis ? "Loading..." : formatNumber(v));
+
+  return (
+    <div className="mx-auto mb-6 grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-green-700">Revenue Collected ({periodLabel})</div>
+        <div className="mt-2 text-2xl font-bold text-green-900">{fmt(kpis?.revenue_collected)}</div>
+        <div className="mt-1 text-xs text-green-700">From paid fees</div>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Expected Revenue ({periodLabel})</div>
+        <div className="mt-2 text-2xl font-bold text-green-900">{fmt(kpis?.revenue_expected)}</div>
+        <div className="mt-1 text-xs text-gray-500">All fees incurred</div>
+      </div>
+      <div className="rounded-xl border border-orange-200 bg-orange-50 px-5 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">Revenue Backlog ({periodLabel})</div>
+        <div className="mt-2 text-2xl font-bold text-orange-700">{fmt(kpis?.revenue_backlog)}</div>
+        <div className="mt-1 text-xs text-orange-600">Unpaid fees outstanding</div>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm text-center">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Fees ({periodLabel})</div>
+        <div className="mt-2 text-2xl font-bold text-green-900">{fmtN(kpis?.total_fees)}</div>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm text-center">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Unpaid Fees ({periodLabel})</div>
+        <div className="mt-2 text-2xl font-bold text-red-600">{fmtN(kpis?.unpaid_fee_count)}</div>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Top Item by Fees ({periodLabel})</div>
+        <div className="mt-2 text-lg font-bold text-green-900 truncate">
+          {loading || !kpis ? "Loading..." : (kpis.top_item_name ?? "N/A")}
+        </div>
+        {!loading && kpis?.top_item_name && (
+          <div className="mt-1 text-xs text-gray-500">{formatMoney(kpis.top_item_fees)} total fees</div>
+        )}
+      </div>
     </div>
   );
 }
