@@ -36,12 +36,34 @@ async function borrowItem(req, res) {
             const [activeBorrows] = await db.query(
                 `SELECT COUNT(DISTINCT bi.Copy_ID) AS count FROM BorrowedItem bi
                  JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
-                 WHERE bi.Person_ID = ? AND cp.Copy_status = 2`,
+                 WHERE bi.Person_ID = ? AND cp.Copy_status = 2
+                   AND bi.BorrowedItem_ID = (
+                     SELECT MAX(bi2.BorrowedItem_ID)
+                     FROM BorrowedItem bi2
+                     WHERE bi2.Copy_ID = bi.Copy_ID
+                   )`,
                 [person_id]
             );
             if (activeBorrows[0].count >= borrowLimit) {
                 res.writeHead(400);
                 return res.end(JSON.stringify({ error: `Borrow limit reached. You can have at most ${borrowLimit} items checked out at a time.` }));
+            }
+
+            // prevent borrowing the same item twice at the same time
+            const [alreadyBorrowed] = await db.query(
+                `SELECT bi.BorrowedItem_ID FROM BorrowedItem bi
+                 JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
+                 WHERE bi.Person_ID = ? AND cp.Item_ID = ? AND cp.Copy_status = 2
+                   AND bi.BorrowedItem_ID = (
+                     SELECT MAX(bi2.BorrowedItem_ID)
+                     FROM BorrowedItem bi2
+                     WHERE bi2.Copy_ID = bi.Copy_ID
+                   )`,
+                [person_id, item_id]
+            );
+            if (alreadyBorrowed.length > 0) {
+                res.writeHead(400);
+                return res.end(JSON.stringify({ error: 'You already have this item checked out.' }));
             }
 
             const today = new Date();

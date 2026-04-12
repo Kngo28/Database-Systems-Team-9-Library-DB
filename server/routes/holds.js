@@ -2,6 +2,48 @@ const db = require('../db');
 
 const formatDate = (d) => d.toISOString().split('T')[0];
 
+async function cleanupExpiredHolds() {
+    const todayStr = formatDate(new Date());
+
+    const [expiredHolds] = await db.query(
+        `SELECT h.Hold_ID, h.queue_status, h.Copy_ID, c.Item_ID
+         FROM HoldItem h
+         JOIN Copy c ON h.Copy_ID = c.Copy_ID
+         WHERE h.hold_status = 2 AND h.expiry_date < ?`,
+        [todayStr]
+    );
+
+    for (const expired of expiredHolds) {
+        // cancel the expired hold
+        await db.query(`UPDATE HoldItem SET hold_status = 0 WHERE Hold_ID = ?`, [expired.Hold_ID]);
+
+        // shift item-level queue
+        await db.query(
+            `UPDATE HoldItem h JOIN Copy c ON h.Copy_ID = c.Copy_ID
+             SET h.queue_status = h.queue_status - 1
+             WHERE c.Item_ID = ? AND h.hold_status IN (1, 2) AND h.queue_status > ?`,
+            [expired.Item_ID, expired.queue_status]
+        );
+
+        // promote next waiting hold
+        const [nextHold] = await db.query(
+            `SELECT h.Hold_ID FROM HoldItem h
+             JOIN Copy c ON h.Copy_ID = c.Copy_ID
+             WHERE c.Item_ID = ? AND h.hold_status = 1
+             ORDER BY h.queue_status ASC, h.hold_date ASC LIMIT 1`,
+            [expired.Item_ID]
+        );
+        if (nextHold.length > 0) {
+            const expiry = new Date();
+            expiry.setDate(expiry.getDate() + 2);
+            await db.query(
+                `UPDATE HoldItem SET hold_status = 2, expiry_date = ?, Copy_ID = ? WHERE Hold_ID = ?`,
+                [formatDate(expiry), expired.Copy_ID, nextHold[0].Hold_ID]
+            );
+        }
+    }
+}
+
 async function placeHold(req, res) {
     let body = '';
 
@@ -182,6 +224,8 @@ async function cancelHold(req, res) {
 
 async function getHoldsForPerson(req, res) {
     try {
+        await cleanupExpiredHolds();
+
         const personId = req.url.split('/')[3];
 
         if (req.user.role === 2 && req.user.person_id !== parseInt(personId)) {
@@ -218,6 +262,8 @@ async function getHoldsForPerson(req, res) {
 
 async function getAllHolds(req, res) {
     try {
+        await cleanupExpiredHolds();
+
         const [rows] = await db.query(
             `SELECT
                 h.Hold_ID, h.queue_status, h.hold_status, h.hold_date, h.expiry_date,
