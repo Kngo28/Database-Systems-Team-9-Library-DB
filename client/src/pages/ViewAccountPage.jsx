@@ -8,7 +8,6 @@ import feesIcon from "../assets/fee.png";
 import profileIcon from "../assets/user.png";
 import notifIcon from "../assets/notif.png";
 
-
 export default function ViewAccountPage() {
   const navigate = useNavigate();
 
@@ -19,6 +18,8 @@ export default function ViewAccountPage() {
   
   const [fees, setFees] = useState([]);
   const [setMessage] = useState("");
+  const [holds, setHolds] = useState([]);
+  const [borrows, setBorrows] = useState([]);
 
   useEffect(() => {
     if (!token) {
@@ -67,6 +68,52 @@ export default function ViewAccountPage() {
     () => unpaidFees.reduce((sum, f) => sum + Number(f.fee_amount), 0),
     [unpaidFees]
   );
+
+  useEffect(() => {
+  if (!token) return;
+
+  const fetchHoldsAndBorrows = async () => {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const currentPersonId = payload.person_id;
+
+      const [holdsResponse, borrowsResponse] = await Promise.all([
+        apiFetch(`/api/holds/${currentPersonId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        apiFetch(`/api/borrow/${currentPersonId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      const holdsData = await holdsResponse.json();
+      const borrowsData = await borrowsResponse.json();
+
+      if (holdsResponse.ok) {
+        setHolds(
+          Array.isArray(holdsData)
+            ? holdsData.filter((h) => h.hold_status === 1 || h.hold_status === 2)
+            : []
+        );
+      }
+
+      if (borrowsResponse.ok) {
+        setBorrows(
+          Array.isArray(borrowsData)
+            ? borrowsData.filter((b) => b.Copy_status === 2)
+            : []
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching holds and borrows:", error);
+    }
+  };
+
+  fetchHoldsAndBorrows();
+  }, [token]);
+
+const holdsCount = useMemo(() => holds.length, [holds]);
+const borrowsCount = useMemo(() => borrows.length, [borrows]);  
 
   const accountCards = [
     {
@@ -159,13 +206,30 @@ export default function ViewAccountPage() {
 
                 {card.title === "Pay Fees" && (
                   <p
-                    className={`text-sm mt-1 font-semibold ${
+                    className={`text-sm mt-3 font-semibold ${
                       unpaidTotal > 0 ? "text-red-600" : "text-green-600"
                     }`}
                   >
                     {unpaidTotal > 0
                       ? `Balance: $${unpaidTotal.toFixed(2)}`
                       : "No balance owed"}
+                  </p>
+                )}
+
+                {card.title === "My Holds" && (
+                  <p className="text-sm mt-1 font-semibold ${}
+                  text-green-600">
+                    {holdsCount > 0
+                      ? `${holdsCount} active hold${holdsCount > 1 ? "s" : ""}`
+                      : "No active holds"}
+                  </p>
+                )}
+
+                {card.title === "Active Borrows" && (
+                  <p className="text-sm mt-1 font-semibold text-green-600">
+                    {borrowsCount > 0
+                      ? `${borrowsCount} borrowed item${borrowsCount > 1 ? "s" : ""}`
+                      : "No active borrows"}
                   </p>
                 )}
               </div>
