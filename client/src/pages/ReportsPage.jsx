@@ -1,12 +1,15 @@
 import { Navigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import NavigationBar from "../components/NavigationBar";
 import { apiFetch } from "../api";
 import { getSessionRoleState } from "../auth";
 import {
+  appendPeriodParams,
   InfoBox,
   PeriodPickerControl,
   SelectControl,
+  formatMoney,
+  formatNumber,
   getDefaultPeriodValue,
   getPeriodSelectionLabel,
 } from "./reports/reportShared";
@@ -31,6 +34,16 @@ import {
 import { downloadReportPdf } from "./reports/reportPDF";
 
 const EXPORT_LIMIT = 1000;
+const EMPTY_OVERVIEW = {
+  total_items: 0,
+  total_books: 0,
+  total_cds: 0,
+  total_devices: 0,
+  total_borrowed: 0,
+  total_active_borrows: 0,
+  total_fees: 0,
+  total_revenue: 0,
+};
 
 const REPORT_DEFINITIONS = {
   popularity: {
@@ -80,6 +93,27 @@ function createInitialHiddenColumnsState() {
   return createReportStateMap(() => []);
 }
 
+function createAuthOptions(token) {
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+}
+
+function normalizeOverview(payload) {
+  return {
+    total_items: Number(payload.total_items ?? 0),
+    total_books: Number(payload.total_books ?? 0),
+    total_cds: Number(payload.total_cds ?? 0),
+    total_devices: Number(payload.total_devices ?? 0),
+    total_borrowed: Number(payload.total_borrowed ?? 0),
+    total_active_borrows: Number(payload.total_active_borrows ?? 0),
+    total_fees: Number(payload.total_fees ?? 0),
+    total_revenue: Number(payload.total_revenue ?? 0),
+  };
+}
+
 function buildReportParams(reportDefinition, sort, sortDirection, filters, extraParams = {}) {
   const params = new URLSearchParams();
 
@@ -105,6 +139,13 @@ function buildReportUrl(reportDefinition, sort, sortDirection, filters, extraPar
   const params = buildReportParams(reportDefinition, sort, sortDirection, filters, extraParams);
   const query = params.toString();
   return `${reportDefinition.endpoint}${query ? `?${query}` : ""}`;
+}
+
+function buildOverviewUrl(filters) {
+  const params = new URLSearchParams();
+  appendPeriodParams(params, filters);
+  const query = params.toString();
+  return `/api/reports/overview${query ? `?${query}` : ""}`;
 }
 
 function createReportFileStem(reportKey, periodLabel) {
@@ -139,6 +180,14 @@ function getNextHiddenColumnKeys(hiddenKeys, columnKey, shouldShow) {
   return hiddenKeys.includes(columnKey) ? hiddenKeys : [...hiddenKeys, columnKey];
 }
 
+function updateScopedReportState(setState, reportKey, nextValue) {
+  setState((prev) => ({
+    ...prev,
+    [reportKey]:
+      typeof nextValue === "function" ? nextValue(prev[reportKey]) : nextValue,
+  }));
+}
+
 export default function ReportsPage() {
   const { isAdmin } = getSessionRoleState();
   const token = sessionStorage.getItem("token");
@@ -153,6 +202,8 @@ export default function ReportsPage() {
     createInitialHiddenColumnsState
   );
   const [data, setData] = useState([]);
+  const [overview, setOverview] = useState(EMPTY_OVERVIEW);
+  const [overviewLoading, setOverviewLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [exportError, setExportError] = useState("");
@@ -172,32 +223,39 @@ export default function ReportsPage() {
   const ActiveTableComponent = activeReport.TableComponent;
   const currentColumns = activeReport.getColumns(reportPeriodLabel);
   const hiddenColumnKeys = hiddenColumnsByReport[reportType];
+  const overviewUrl = useMemo(
+    () =>
+      buildOverviewUrl({
+        periodType: currentFilters.periodType,
+        periodValue: currentFilters.periodValue,
+        customStart: currentFilters.customStart,
+        customEnd: currentFilters.customEnd,
+      }),
+    [
+      currentFilters.periodType,
+      currentFilters.periodValue,
+      currentFilters.customStart,
+      currentFilters.customEnd,
+    ]
+  );
 
   function updateCurrentSort(value) {
-    setSortByReport((prev) => ({
-      ...prev,
-      [reportType]: value,
-    }));
+    updateScopedReportState(setSortByReport, reportType, value);
   }
 
   function updateCurrentSortDirection(value) {
-    setSortDirectionByReport((prev) => ({
-      ...prev,
-      [reportType]: value,
-    }));
+    updateScopedReportState(setSortDirectionByReport, reportType, value);
   }
 
   function updateCurrentFilters(updater) {
-    setFiltersByReport((prev) => ({
-      ...prev,
-      [reportType]: updater(prev[reportType]),
-    }));
+    updateScopedReportState(setFiltersByReport, reportType, updater);
   }
 
   useEffect(() => {
     if (!token) {
       setError("Not logged in.");
       setLoading(false);
+      setOverviewLoading(false);
       return;
     }
 
@@ -208,11 +266,7 @@ export default function ReportsPage() {
         setExportError("");
         const url = buildReportUrl(activeReport, currentSort, currentSortDirection, currentFilters);
 
-        const response = await apiFetch(url, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await apiFetch(url, createAuthOptions(token));
 
         const json = await response.json();
 
@@ -233,6 +287,38 @@ export default function ReportsPage() {
     fetchReport();
   }, [token, activeReport, currentSort, currentSortDirection, currentFilters]);
 
+  useEffect(() => {
+    if (!token) {
+      setOverviewLoading(false);
+      return;
+    }
+
+    async function fetchOverview() {
+      try {
+        setOverviewLoading(true);
+        const response = await apiFetch(overviewUrl, createAuthOptions(token));
+
+        const json = await response.json();
+
+        if (!response.ok) {
+          throw new Error(json.error || "Failed to load overview");
+        }
+
+        setOverview(normalizeOverview(json));
+      } catch (err) {
+        console.error("Failed to fetch report overview:", err);
+        setOverview(EMPTY_OVERVIEW);
+      } finally {
+        setOverviewLoading(false);
+      }
+    }
+
+    fetchOverview();
+  }, [
+    token,
+    overviewUrl,
+  ]);
+
   if (!isAdmin) {
     return <Navigate to="/login" replace />;
   }
@@ -248,10 +334,7 @@ export default function ReportsPage() {
   function handleColumnVisibilityChange(columnKey, shouldShow) {
     const nextHiddenKeys = getNextHiddenColumnKeys(hiddenColumnKeys, columnKey, shouldShow);
 
-    setHiddenColumnsByReport((prev) => ({
-      ...prev,
-      [reportType]: nextHiddenKeys,
-    }));
+    updateScopedReportState(setHiddenColumnsByReport, reportType, nextHiddenKeys);
 
     if (!shouldShow && currentSort === columnKey) {
       updateCurrentSort(
@@ -303,11 +386,7 @@ export default function ReportsPage() {
         limit: EXPORT_LIMIT,
       });
 
-      const response = await apiFetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await apiFetch(url, createAuthOptions(token));
 
       const json = await response.json();
 
@@ -362,6 +441,26 @@ export default function ReportsPage() {
           </button>
         </div>
 
+        <div className="mx-auto mb-6 grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <InventoryOverviewCard overview={overview} overviewLoading={overviewLoading} />
+          <OverviewStatCard
+            label={`Borrows Total (${reportPeriodLabel})`}
+            value={overviewLoading ? "Loading..." : formatNumber(overview.total_borrowed)}
+          />
+          <OverviewStatCard
+            label={`Active Borrows (${reportPeriodLabel})`}
+            value={overviewLoading ? "Loading..." : formatNumber(overview.total_active_borrows)}
+          />
+          <OverviewStatCard
+            label={`Fees Total (${reportPeriodLabel})`}
+            value={overviewLoading ? "Loading..." : formatNumber(overview.total_fees)}
+          />
+          <OverviewStatCard
+            label={`Revenue Total (${reportPeriodLabel})`}
+            value={overviewLoading ? "Loading..." : formatMoney(overview.total_revenue)}
+          />
+        </div>
+
         <div className="bg-white rounded-xl border border-gray-200 shadow-md p-4 mb-6">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <SelectControl
@@ -404,6 +503,37 @@ export default function ReportsPage() {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+function InventoryOverviewCard({ overview, overviewLoading }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+        Total Items In DB
+      </div>
+      <div className="mt-2 flex items-start justify-between gap-4">
+        <div>
+          <div className="text-2xl font-bold text-green-900">
+            {overviewLoading ? "Loading..." : formatNumber(overview.total_items)}
+          </div>
+        </div>
+        <div className="min-w-[96px] space-y-1 text-right text-xs text-gray-600">
+          <div>Books: {overviewLoading ? "..." : formatNumber(overview.total_books)}</div>
+          <div>CDs: {overviewLoading ? "..." : formatNumber(overview.total_cds)}</div>
+          <div>Devices: {overviewLoading ? "..." : formatNumber(overview.total_devices)}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OverviewStatCard({ label, value }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-center shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="mt-2 text-2xl font-bold text-green-900">{value}</div>
     </div>
   );
 }

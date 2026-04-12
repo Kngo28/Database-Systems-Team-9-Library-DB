@@ -70,7 +70,7 @@ export function FeesReportsFilters({ filters, onChange }) {
         label="Borrower Name"
         value={filters.borrowerName}
         onChange={(value) => onChange("borrowerName", value)}
-        placeholder="Search firstname lastname"
+        placeholder="Search borrower name"
       />
       <InputControl
         label="Min Balance"
@@ -79,6 +79,7 @@ export function FeesReportsFilters({ filters, onChange }) {
         step="0.01"
         value={filters.minTotal}
         onChange={(value) => onChange("minTotal", value)}
+        placeholder="0"
       />
       <InputControl
         label="Min Fee Count"

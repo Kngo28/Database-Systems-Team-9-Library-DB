@@ -51,6 +51,18 @@ const STOCK_RULES = {
     borrowRateStepPerCopy: 4,
     utilizationStepPerCopy: 20,
 };
+const PERSON_NAME_SQL = "LOWER(TRIM(CONCAT(COALESCE(p.First_name, ''), ' ', COALESCE(p.Last_name, ''))))";
+const AUTHOR_NAME_SQL = `
+    LOWER(
+        TRIM(
+            CONCAT(
+                COALESCE(b.author_firstName, ''),
+                ' ',
+                COALESCE(b.author_lastName, '')
+            )
+        )
+    )
+`;
 
 function getSearchParams(req) {
     const host = req.headers.host || 'localhost:3000';
@@ -106,9 +118,26 @@ function buildLikePattern(value) {
     return value ? `%${value}%` : null;
 }
 
+function getDateRangeParams({ periodStart, periodEnd }) {
+    return [periodStart, periodStart, periodEnd, periodEnd];
+}
+
+function getPeriodRangeClause(column, useDateOnly = false) {
+    const expression = useDateOnly ? `DATE(${column})` : column;
+    return `(? IS NULL OR ${expression} >= ?) AND (? IS NULL OR ${expression} <= ?)`;
+}
+
 function parseMappedInt(value, allowedValues) {
     const parsed = parseOptionalInt(value);
     return allowedValues.includes(parsed) ? parsed : null;
+}
+
+function parseMappedIntList(values, allowedValues) {
+    return [...new Set(
+        values
+            .map((value) => parseMappedInt(value, allowedValues))
+            .filter((value) => value != null)
+    )];
 }
 
 function parsePeriodType(value) {
@@ -234,7 +263,7 @@ function getPopularityFilters(searchParams) {
 
     return {
         ...getPeriodFilters(searchParams),
-        type: parseOptionalInt(searchParams.get('type')),
+        types: parseMappedIntList(searchParams.getAll('type'), [1, 2, 3]),
         itemNamePattern: buildLikePattern(itemName),
         genrePattern: buildLikePattern(genre),
         authorNamePattern: buildLikePattern(authorName),
@@ -374,8 +403,92 @@ function getSortValue(row, sortKey) {
     return row[sortKey];
 }
 
+async function getReportsOverview(req, res) {
+    const filters = getPeriodFilters(getSearchParams(req));
+    const rangeParams = getDateRangeParams(filters);
+
+    try {
+        const [rows] = await db.query(
+            `SELECT
+                (
+                    SELECT COUNT(*)
+                    FROM Item
+                ) AS total_items,
+                (
+                    SELECT COUNT(*)
+                    FROM Item
+                    WHERE Item_type = 1
+                ) AS total_books,
+                (
+                    SELECT COUNT(*)
+                    FROM Item
+                    WHERE Item_type = 2
+                ) AS total_cds,
+                (
+                    SELECT COUNT(*)
+                    FROM Item
+                    WHERE Item_type = 3
+                ) AS total_devices,
+                (
+                    SELECT COUNT(DISTINCT bi.BorrowedItem_ID)
+                    FROM BorrowedItem bi
+                    WHERE ${getPeriodRangeClause('bi.borrow_date')}
+                ) AS total_borrowed,
+                (
+                    SELECT COUNT(DISTINCT bi.BorrowedItem_ID)
+                    FROM BorrowedItem bi
+                    JOIN Copy cp
+                        ON bi.Copy_ID = cp.Copy_ID
+                    WHERE cp.Copy_status = 2
+                      AND bi.BorrowedItem_ID = (
+                          SELECT MAX(bi2.BorrowedItem_ID)
+                          FROM BorrowedItem bi2
+                          WHERE bi2.Copy_ID = bi.Copy_ID
+                      )
+                      AND ${getPeriodRangeClause('bi.borrow_date')}
+                ) AS total_active_borrows,
+                (
+                    SELECT COUNT(*)
+                    FROM FeeOwed f
+                    WHERE ${getPeriodRangeClause('f.date_owed', true)}
+                ) AS total_fees,
+                (
+                    SELECT COALESCE(ROUND(SUM(f.fee_amount), 2), 0.00)
+                    FROM FeeOwed f
+                    JOIN FeePayment fp
+                        ON f.Fine_ID = fp.Fine_ID
+                    WHERE ${getPeriodRangeClause('fp.Payment_Date')}
+                ) AS total_revenue`,
+            [
+                ...rangeParams,
+                ...rangeParams,
+                ...rangeParams,
+                ...rangeParams,
+            ]
+        );
+
+        sendJson(res, 200, rows[0] || {
+            total_items: 0,
+            total_books: 0,
+            total_cds: 0,
+            total_devices: 0,
+            total_borrowed: 0,
+            total_active_borrows: 0,
+            total_fees: 0,
+            total_revenue: 0,
+        });
+    } catch (err) {
+        sendReportError(res, 'reports overview', err);
+    }
+}
+
 async function getPopularityReport(req, res) {
     const filters = getPopularityFilters(getSearchParams(req));
+    const borrowRangeParams = getDateRangeParams(filters);
+    const holdRangeParams = getDateRangeParams(filters);
+    const typeClause = filters.types.length
+        ? `i.Item_type IN (${filters.types.map(() => '?').join(', ')})`
+        : '1 = 1';
 
     try {
         const [rows] = await db.query(
@@ -446,8 +559,7 @@ async function getPopularityReport(req, res) {
                 FROM Copy cp
                 LEFT JOIN BorrowedItem bi
                     ON cp.Copy_ID = bi.Copy_ID
-                WHERE (? IS NULL OR bi.borrow_date >= ?)
-                  AND (? IS NULL OR bi.borrow_date <= ?)
+                WHERE ${getPeriodRangeClause('bi.borrow_date')}
                 GROUP BY cp.Item_ID
             ) borrow_stats ON i.Item_ID = borrow_stats.Item_ID
             LEFT JOIN (
@@ -458,39 +570,27 @@ async function getPopularityReport(req, res) {
                 JOIN HoldItem h
                     ON cp.Copy_ID = h.Copy_ID
                 WHERE h.hold_status <> 0
-                  AND (? IS NULL OR h.hold_date >= ?)
-                  AND (? IS NULL OR h.hold_date <= ?)
+                  AND ${getPeriodRangeClause('h.hold_date')}
                 GROUP BY cp.Item_ID
             ) hold_stats ON i.Item_ID = hold_stats.Item_ID
-            WHERE (? IS NULL OR i.Item_type = ?)
+            WHERE ${typeClause}
               AND (? IS NULL OR LOWER(i.Item_name) LIKE ?)
               AND (
                   ? IS NULL OR
-                  (i.Item_type = 1 AND LOWER(COALESCE(b.genre, '')) LIKE ?)
+                  i.Item_type <> 1 OR
+                  LOWER(COALESCE(b.genre, '')) LIKE ?
               )
               AND (
                   ? IS NULL OR
-                  (
-                      i.Item_type = 1 AND
-                      LOWER(
-                          TRIM(
-                              CONCAT(
-                                  COALESCE(b.author_firstName, ''),
-                                  ' ',
-                                  COALESCE(b.author_lastName, '')
-                              )
-                          )
-                      ) LIKE ?
-                  )
+                  i.Item_type <> 1 OR
+                  ${AUTHOR_NAME_SQL} LIKE ?
               )
-              AND (? IS NULL OR (i.Item_type = 2 AND cd.CD_type = ?))
-              AND (? IS NULL OR (i.Item_type = 3 AND dv.Device_type = ?))`,
+              AND (? IS NULL OR i.Item_type <> 2 OR cd.CD_type = ?)
+              AND (? IS NULL OR i.Item_type <> 3 OR dv.Device_type = ?)`,
             [
-                filters.periodStart, filters.periodStart,
-                filters.periodEnd, filters.periodEnd,
-                filters.periodStart, filters.periodStart,
-                filters.periodEnd, filters.periodEnd,
-                filters.type, filters.type,
+                ...borrowRangeParams,
+                ...holdRangeParams,
+                ...filters.types,
                 filters.itemNamePattern, filters.itemNamePattern,
                 filters.genrePattern, filters.genrePattern,
                 filters.authorNamePattern, filters.authorNamePattern,
@@ -514,6 +614,7 @@ async function getPopularityReport(req, res) {
 
 async function getFinesReport(req, res) {
     const filters = getFeesFilters(getSearchParams(req));
+    const rangeParams = getDateRangeParams(filters);
 
     try {
         const [rows] = await db.query(
@@ -536,12 +637,11 @@ async function getFinesReport(req, res) {
             LEFT JOIN FeePayment fp
                 ON f.Fine_ID = fp.Fine_ID
             WHERE fp.Fine_ID IS NULL
-              AND (? IS NULL OR DATE(f.date_owed) >= ?)
-              AND (? IS NULL OR DATE(f.date_owed) <= ?)
+              AND ${getPeriodRangeClause('f.date_owed', true)}
               AND (? IS NULL OR p.role = ?)
               AND (
                   ? IS NULL OR
-                  LOWER(TRIM(CONCAT(COALESCE(p.First_name, ''), ' ', COALESCE(p.Last_name, '')))) LIKE ?
+                  ${PERSON_NAME_SQL} LIKE ?
               )
             GROUP BY
                 f.Person_ID,
@@ -554,10 +654,7 @@ async function getFinesReport(req, res) {
             ORDER BY ${filters.orderBy} ${filters.orderDirection}, unpaid_total DESC
             LIMIT ?`,
             [
-                filters.periodStart,
-                filters.periodStart,
-                filters.periodEnd,
-                filters.periodEnd,
+                ...rangeParams,
                 filters.role,
                 filters.role,
                 filters.borrowerNamePattern,
@@ -577,6 +674,9 @@ async function getFinesReport(req, res) {
 
 async function getPatronsActivityReport(req, res) {
     const filters = getPatronFilters(getSearchParams(req));
+    const borrowRangeParams = getDateRangeParams(filters);
+    const holdRangeParams = getDateRangeParams(filters);
+    const feeRangeParams = getDateRangeParams(filters);
 
     try {
         const [rows] = await db.query(
@@ -626,8 +726,7 @@ async function getPatronsActivityReport(req, res) {
                     ON bi.Copy_ID = cp.Copy_ID
                 LEFT JOIN Item i
                     ON cp.Item_ID = i.Item_ID
-                WHERE (? IS NULL OR bi.borrow_date >= ?)
-                  AND (? IS NULL OR bi.borrow_date <= ?)
+                WHERE ${getPeriodRangeClause('bi.borrow_date')}
                   AND (? IS NULL OR LOWER(i.Item_name) LIKE ?)
                 GROUP BY bi.Person_ID
             ) borrow_stats ON p.Person_ID = borrow_stats.Person_ID
@@ -641,8 +740,7 @@ async function getPatronsActivityReport(req, res) {
                 LEFT JOIN Item i
                     ON cp.Item_ID = i.Item_ID
                 WHERE hold_status = 1
-                  AND (? IS NULL OR hold_date >= ?)
-                  AND (? IS NULL OR hold_date <= ?)
+                  AND ${getPeriodRangeClause('hold_date')}
                   AND (? IS NULL OR LOWER(i.Item_name) LIKE ?)
                 GROUP BY h.Person_ID
             ) hold_stats ON p.Person_ID = hold_stats.Person_ID
@@ -661,15 +759,14 @@ async function getPatronsActivityReport(req, res) {
                 LEFT JOIN FeePayment fp
                     ON f.Fine_ID = fp.Fine_ID
                 WHERE fp.Fine_ID IS NULL
-                  AND (? IS NULL OR DATE(f.date_owed) >= ?)
-                  AND (? IS NULL OR DATE(f.date_owed) <= ?)
+                  AND ${getPeriodRangeClause('f.date_owed', true)}
                   AND (? IS NULL OR LOWER(i.Item_name) LIKE ?)
                 GROUP BY f.Person_ID
             ) fee_stats ON p.Person_ID = fee_stats.Person_ID
             WHERE (? IS NULL OR p.role = ?)
               AND (
                   ? IS NULL OR
-                  LOWER(TRIM(CONCAT(COALESCE(p.First_name, ''), ' ', COALESCE(p.Last_name, '')))) LIKE ?
+                  ${PERSON_NAME_SQL} LIKE ?
               )
               AND p.signup_date IS NOT NULL
               AND COALESCE(borrow_stats.borrow_count, 0) >= ?
@@ -686,22 +783,13 @@ async function getPatronsActivityReport(req, res) {
                 filters.periodType,
                 filters.periodType,
                 filters.periodType,
-                filters.periodStart,
-                filters.periodStart,
-                filters.periodEnd,
-                filters.periodEnd,
+                ...borrowRangeParams,
                 filters.itemNamePattern,
                 filters.itemNamePattern,
-                filters.periodStart,
-                filters.periodStart,
-                filters.periodEnd,
-                filters.periodEnd,
+                ...holdRangeParams,
                 filters.itemNamePattern,
                 filters.itemNamePattern,
-                filters.periodStart,
-                filters.periodStart,
-                filters.periodEnd,
-                filters.periodEnd,
+                ...feeRangeParams,
                 filters.itemNamePattern,
                 filters.itemNamePattern,
                 filters.role,
@@ -721,4 +809,9 @@ async function getPatronsActivityReport(req, res) {
     }
 }
 
-module.exports = { getPopularityReport, getFinesReport, getPatronsActivityReport };
+module.exports = {
+    getReportsOverview,
+    getPopularityReport,
+    getFinesReport,
+    getPatronsActivityReport,
+};

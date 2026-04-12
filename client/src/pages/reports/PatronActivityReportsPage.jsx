@@ -68,10 +68,10 @@ export function PatronActivityReportsFilters({ filters, onChange }) {
         options={ROLE_OPTIONS}
       />
       <InputControl
-        label="Borrower Name"
+        label="Patron Name"
         value={filters.borrowerName}
         onChange={(value) => onChange("borrowerName", value)}
-        placeholder="Search firstname lastname"
+        placeholder="Search Patron name"
       />
       <InputControl
         label="Item Name"
@@ -87,7 +87,7 @@ export function PatronActivityReportsFilters({ filters, onChange }) {
         onChange={(value) => onChange("minBorrows", value)}
       />
       <CheckboxControl
-        label="Only Show Accounts With Debt"
+        label="Show Borrow Restricted Accounts"
         checked={filters.withUnpaidOnly}
         onChange={(value) => onChange("withUnpaidOnly", value)}
       />

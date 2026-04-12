@@ -263,6 +263,12 @@ const server = http.createServer((req, res) => {
             });
         });
     // admin-only — reports on popularity
+    } else if (req.method === 'GET' && req.url.startsWith('/api/reports/overview')) {
+        verifyToken(req, res, () => {
+            requireAdmin(req, res, () => {
+                reports.getReportsOverview(req, res);
+            });
+        });
     } else if (req.method === 'GET' && req.url.startsWith('/api/reports/popularity')) {
         verifyToken(req, res, () => {
             requireAdmin(req, res, () => {
