@@ -263,6 +263,18 @@ const server = http.createServer((req, res) => {
             });
         });
     // admin-only — reports on popularity
+    } else if (req.method === 'GET' && req.url.startsWith('/api/reports/overview')) {
+        verifyToken(req, res, () => {
+            requireAdmin(req, res, () => {
+                reports.getReportsOverview(req, res);
+            });
+        });
+    } else if (req.method === 'GET' && req.url.startsWith('/api/reports/popularity-overview')) {
+        verifyToken(req, res, () => {
+            requireAdmin(req, res, () => {
+                reports.getPopularityOverview(req, res);
+            });
+        });
     } else if (req.method === 'GET' && req.url.startsWith('/api/reports/popularity')) {
         verifyToken(req, res, () => {
             requireAdmin(req, res, () => {
@@ -277,13 +289,33 @@ const server = http.createServer((req, res) => {
             });
         }); 
     // admin-only — reports on popularity
+    } else if (req.method === 'GET' && req.url.startsWith('/api/reports/patrons-overview')) {
+        verifyToken(req, res, () => {
+            requireAdmin(req, res, () => {
+                reports.getPatronsOverview(req, res);
+            });
+        });
     } else if (req.method === 'GET' && req.url.startsWith('/api/reports/patrons')) {
         verifyToken(req, res, () => {
             requireAdmin(req, res, () => {
                 reports.getPatronsActivityReport(req, res);
             });
-        }); 
-        
+        });
+    // admin-only — revenue report KPIs (must come before /api/reports/revenue)
+    } else if (req.method === 'GET' && req.url.startsWith('/api/reports/revenue-overview')) {
+        verifyToken(req, res, () => {
+            requireAdmin(req, res, () => {
+                reports.getRevenueOverview(req, res);
+            });
+        });
+    // admin-only — revenue report records
+    } else if (req.method === 'GET' && req.url.startsWith('/api/reports/revenue')) {
+        verifyToken(req, res, () => {
+            requireAdmin(req, res, () => {
+                reports.getRevenueReport(req, res);
+            });
+        });
+
     }
     else {
         res.writeHead(404);

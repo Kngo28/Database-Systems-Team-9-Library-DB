@@ -30,6 +30,8 @@ export const patronActivityReportPage = {
     return {
       ...createDefaultPeriodFilters(),
       role: "All",
+      borrowerName: "",
+      itemName: "",
       minBorrows: "",
       withUnpaidOnly: false,
     };
@@ -37,6 +39,8 @@ export const patronActivityReportPage = {
   buildParams(params, filters) {
     appendPeriodParams(params, filters);
     if (filters.role !== "All") params.set("role", filters.role);
+    if (filters.borrowerName.trim()) params.set("borrowerName", filters.borrowerName.trim());
+    if (filters.itemName.trim()) params.set("itemName", filters.itemName.trim());
     if (filters.minBorrows !== "") params.set("minBorrows", filters.minBorrows);
     if (filters.withUnpaidOnly) params.set("withUnpaidOnly", "true");
   },
@@ -46,6 +50,8 @@ export const patronActivityReportPage = {
         label: "Patron Type",
         value: ROLE_OPTIONS.find((option) => option.value === filters.role)?.label ?? "All",
       },
+      { label: "Borrower Search", value: filters.borrowerName.trim() || "All" },
+      { label: "Item Search", value: filters.itemName.trim() || "All" },
       { label: "Minimum Borrows", value: filters.minBorrows || "None" },
       { label: "Debt Filter", value: filters.withUnpaidOnly ? "Only accounts with debt" : "All accounts" },
     ];
@@ -62,6 +68,18 @@ export function PatronActivityReportsFilters({ filters, onChange }) {
         options={ROLE_OPTIONS}
       />
       <InputControl
+        label="Patron Name"
+        value={filters.borrowerName}
+        onChange={(value) => onChange("borrowerName", value)}
+        placeholder="Search Patron name"
+      />
+      <InputControl
+        label="Item Name"
+        value={filters.itemName}
+        onChange={(value) => onChange("itemName", value)}
+        placeholder="Search by item title"
+      />
+      <InputControl
         label="Min Borrows in Period"
         type="number"
         min={0}
@@ -69,7 +87,7 @@ export function PatronActivityReportsFilters({ filters, onChange }) {
         onChange={(value) => onChange("minBorrows", value)}
       />
       <CheckboxControl
-        label="Only Show Accounts With Debt"
+        label="Show Borrow Restricted Accounts"
         checked={filters.withUnpaidOnly}
         onChange={(value) => onChange("withUnpaidOnly", value)}
       />
