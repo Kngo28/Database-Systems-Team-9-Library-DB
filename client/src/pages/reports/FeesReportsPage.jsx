@@ -27,6 +27,7 @@ export const feesReportPage = {
     return {
       ...createDefaultPeriodFilters(),
       role: "All",
+      borrowerName: "",
       minTotal: "",
       minFeeCount: "",
       minDaysOutstanding: "",
@@ -35,6 +36,7 @@ export const feesReportPage = {
   buildParams(params, filters) {
     appendPeriodParams(params, filters);
     if (filters.role !== "All") params.set("role", filters.role);
+    if (filters.borrowerName.trim()) params.set("borrowerName", filters.borrowerName.trim());
     if (filters.minTotal !== "") params.set("minTotal", filters.minTotal);
     if (filters.minFeeCount !== "") params.set("minFeeCount", filters.minFeeCount);
     if (filters.minDaysOutstanding !== "") {
@@ -47,6 +49,7 @@ export const feesReportPage = {
         label: "Patron Type",
         value: ROLE_OPTIONS.find((option) => option.value === filters.role)?.label ?? "All",
       },
+      { label: "Borrower Search", value: filters.borrowerName.trim() || "All" },
       { label: "Minimum Balance", value: filters.minTotal || "None" },
       { label: "Minimum Fee Count", value: filters.minFeeCount || "None" },
       { label: "Minimum Debt Age", value: filters.minDaysOutstanding ? `${filters.minDaysOutstanding} days` : "None" },
@@ -62,6 +65,12 @@ export function FeesReportsFilters({ filters, onChange }) {
         value={filters.role}
         onChange={(value) => onChange("role", value)}
         options={ROLE_OPTIONS}
+      />
+      <InputControl
+        label="Borrower Name"
+        value={filters.borrowerName}
+        onChange={(value) => onChange("borrowerName", value)}
+        placeholder="Search firstname lastname"
       />
       <InputControl
         label="Min Balance"

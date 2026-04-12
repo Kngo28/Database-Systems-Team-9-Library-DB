@@ -782,10 +782,24 @@ function getTableWidth(columns) {
 }
 
 function getPopularityIdentityDetails(item) {
-  const authorName =
-    [item.author_firstName, item.author_lastName].filter(Boolean).join(" ") || "N/A";
+  const itemType = Number(item.Item_type);
 
-  return [formatItemType(item.Item_type), item.genre || "N/A", authorName].join(" | ");
+  if (itemType === 1) {
+    const authorName = [item.author_firstName, item.author_lastName].filter(Boolean).join(" ");
+    return [formatItemType(item.Item_type), item.genre, authorName].filter(Boolean).join(" | ");
+  }
+
+  if (itemType === 2) {
+    return [formatItemType(item.Item_type), formatCdType(item.CD_type)].filter(Boolean).join(" | ");
+  }
+
+  if (itemType === 3) {
+    return [formatItemType(item.Item_type), formatDeviceType(item.Device_type)]
+      .filter(Boolean)
+      .join(" | ");
+  }
+
+  return formatItemType(item.Item_type);
 }
 
 export function formatItemType(type) {
@@ -793,6 +807,20 @@ export function formatItemType(type) {
   if (Number(type) === 2) return "CD";
   if (Number(type) === 3) return "Device";
   return "Item";
+}
+
+function formatCdType(type) {
+  if (Number(type) === 1) return "DVD";
+  if (Number(type) === 2) return "Blu ray";
+  if (Number(type) === 3) return "CD";
+  return "";
+}
+
+function formatDeviceType(type) {
+  if (Number(type) === 1) return "Tablet";
+  if (Number(type) === 2) return "Misc";
+  if (Number(type) === 3) return "Laptop";
+  return "";
 }
 
 export function formatRole(role) {

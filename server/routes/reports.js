@@ -93,6 +93,24 @@ function parseBoolean(value) {
     return value === 'true' || value === '1';
 }
 
+function parseOptionalSearch(value) {
+    if (typeof value !== 'string') {
+        return null;
+    }
+
+    const normalized = value.trim().replace(/\s+/g, ' ').toLowerCase();
+    return normalized || null;
+}
+
+function buildLikePattern(value) {
+    return value ? `%${value}%` : null;
+}
+
+function parseMappedInt(value, allowedValues) {
+    const parsed = parseOptionalInt(value);
+    return allowedValues.includes(parsed) ? parsed : null;
+}
+
 function parsePeriodType(value) {
     return PERIOD_TYPES.includes(value) ? value : 'quarter';
 }
@@ -210,9 +228,18 @@ function getPeriodFilters(searchParams) {
 }
 
 function getPopularityFilters(searchParams) {
+    const itemName = parseOptionalSearch(searchParams.get('itemName'));
+    const genre = parseOptionalSearch(searchParams.get('genre'));
+    const authorName = parseOptionalSearch(searchParams.get('authorName'));
+
     return {
         ...getPeriodFilters(searchParams),
         type: parseOptionalInt(searchParams.get('type')),
+        itemNamePattern: buildLikePattern(itemName),
+        genrePattern: buildLikePattern(genre),
+        authorNamePattern: buildLikePattern(authorName),
+        cdType: parseMappedInt(searchParams.get('cdType'), [1, 2, 3]),
+        deviceType: parseMappedInt(searchParams.get('deviceType'), [1, 2, 3]),
         limit: parsePositiveInt(searchParams.get('limit')),
         orderBy: pickSort(searchParams, POPULARITY_ALLOWED_SORTS, 'times_checked_out'),
         orderDirection: parseSortDirection(searchParams.get('direction')),
@@ -220,9 +247,12 @@ function getPopularityFilters(searchParams) {
 }
 
 function getFeesFilters(searchParams) {
+    const borrowerName = parseOptionalSearch(searchParams.get('borrowerName'));
+
     return {
         ...getPeriodFilters(searchParams),
         role: parseOptionalInt(searchParams.get('role')),
+        borrowerNamePattern: buildLikePattern(borrowerName),
         minTotal: parseOptionalNumber(searchParams.get('minTotal')) ?? 0,
         minFeeCount: parseNonNegativeInt(searchParams.get('minFeeCount')),
         minDaysOutstanding: parseNonNegativeInt(searchParams.get('minDaysOutstanding')),
@@ -233,9 +263,14 @@ function getFeesFilters(searchParams) {
 }
 
 function getPatronFilters(searchParams) {
+    const borrowerName = parseOptionalSearch(searchParams.get('borrowerName'));
+    const itemName = parseOptionalSearch(searchParams.get('itemName'));
+
     return {
         ...getPeriodFilters(searchParams),
         role: parseOptionalInt(searchParams.get('role')),
+        borrowerNamePattern: buildLikePattern(borrowerName),
+        itemNamePattern: buildLikePattern(itemName),
         minBorrows: parseNonNegativeInt(searchParams.get('minBorrows')),
         withUnpaidOnly: parseBoolean(searchParams.get('withUnpaidOnly')),
         limit: parsePositiveInt(searchParams.get('limit')),
@@ -348,6 +383,8 @@ async function getPopularityReport(req, res) {
                 i.Item_ID,
                 i.Item_name,
                 i.Item_type,
+                cd.CD_type,
+                dv.Device_type,
                 COALESCE(b.genre, cd.genre) AS genre,
                 b.author_firstName,
                 b.author_lastName,
@@ -389,6 +426,7 @@ async function getPopularityReport(req, res) {
             FROM Item i
             LEFT JOIN Book b ON i.Item_ID = b.Item_ID
             LEFT JOIN CD cd ON i.Item_ID = cd.Item_ID
+            LEFT JOIN Device dv ON i.Item_ID = dv.Item_ID
             LEFT JOIN (
                 SELECT
                     Item_ID,
@@ -424,13 +462,40 @@ async function getPopularityReport(req, res) {
                   AND (? IS NULL OR h.hold_date <= ?)
                 GROUP BY cp.Item_ID
             ) hold_stats ON i.Item_ID = hold_stats.Item_ID
-            WHERE (? IS NULL OR i.Item_type = ?)`,
+            WHERE (? IS NULL OR i.Item_type = ?)
+              AND (? IS NULL OR LOWER(i.Item_name) LIKE ?)
+              AND (
+                  ? IS NULL OR
+                  (i.Item_type = 1 AND LOWER(COALESCE(b.genre, '')) LIKE ?)
+              )
+              AND (
+                  ? IS NULL OR
+                  (
+                      i.Item_type = 1 AND
+                      LOWER(
+                          TRIM(
+                              CONCAT(
+                                  COALESCE(b.author_firstName, ''),
+                                  ' ',
+                                  COALESCE(b.author_lastName, '')
+                              )
+                          )
+                      ) LIKE ?
+                  )
+              )
+              AND (? IS NULL OR (i.Item_type = 2 AND cd.CD_type = ?))
+              AND (? IS NULL OR (i.Item_type = 3 AND dv.Device_type = ?))`,
             [
                 filters.periodStart, filters.periodStart,
                 filters.periodEnd, filters.periodEnd,
                 filters.periodStart, filters.periodStart,
                 filters.periodEnd, filters.periodEnd,
                 filters.type, filters.type,
+                filters.itemNamePattern, filters.itemNamePattern,
+                filters.genrePattern, filters.genrePattern,
+                filters.authorNamePattern, filters.authorNamePattern,
+                filters.cdType, filters.cdType,
+                filters.deviceType, filters.deviceType,
             ]
         );
 
@@ -474,6 +539,10 @@ async function getFinesReport(req, res) {
               AND (? IS NULL OR DATE(f.date_owed) >= ?)
               AND (? IS NULL OR DATE(f.date_owed) <= ?)
               AND (? IS NULL OR p.role = ?)
+              AND (
+                  ? IS NULL OR
+                  LOWER(TRIM(CONCAT(COALESCE(p.First_name, ''), ' ', COALESCE(p.Last_name, '')))) LIKE ?
+              )
             GROUP BY
                 f.Person_ID,
                 p.First_name,
@@ -491,6 +560,8 @@ async function getFinesReport(req, res) {
                 filters.periodEnd,
                 filters.role,
                 filters.role,
+                filters.borrowerNamePattern,
+                filters.borrowerNamePattern,
                 filters.minTotal,
                 filters.minFeeCount,
                 filters.minDaysOutstanding,
@@ -553,19 +624,27 @@ async function getPatronsActivityReport(req, res) {
                 FROM BorrowedItem bi
                 LEFT JOIN Copy cp
                     ON bi.Copy_ID = cp.Copy_ID
+                LEFT JOIN Item i
+                    ON cp.Item_ID = i.Item_ID
                 WHERE (? IS NULL OR bi.borrow_date >= ?)
                   AND (? IS NULL OR bi.borrow_date <= ?)
+                  AND (? IS NULL OR LOWER(i.Item_name) LIKE ?)
                 GROUP BY bi.Person_ID
             ) borrow_stats ON p.Person_ID = borrow_stats.Person_ID
             LEFT JOIN (
                 SELECT
-                    Person_ID,
+                    h.Person_ID,
                     COUNT(DISTINCT Hold_ID) AS active_holds
-                FROM HoldItem
+                FROM HoldItem h
+                LEFT JOIN Copy cp
+                    ON h.Copy_ID = cp.Copy_ID
+                LEFT JOIN Item i
+                    ON cp.Item_ID = i.Item_ID
                 WHERE hold_status = 1
                   AND (? IS NULL OR hold_date >= ?)
                   AND (? IS NULL OR hold_date <= ?)
-                GROUP BY Person_ID
+                  AND (? IS NULL OR LOWER(i.Item_name) LIKE ?)
+                GROUP BY h.Person_ID
             ) hold_stats ON p.Person_ID = hold_stats.Person_ID
             LEFT JOIN (
                 SELECT
@@ -573,17 +652,34 @@ async function getPatronsActivityReport(req, res) {
                     COUNT(*) AS unpaid_fee_count,
                     COALESCE(SUM(f.fee_amount), 0) AS unpaid_total
                 FROM FeeOwed f
+                LEFT JOIN BorrowedItem bi
+                    ON f.BorrowedItem_ID = bi.BorrowedItem_ID
+                LEFT JOIN Copy cp
+                    ON bi.Copy_ID = cp.Copy_ID
+                LEFT JOIN Item i
+                    ON cp.Item_ID = i.Item_ID
                 LEFT JOIN FeePayment fp
                     ON f.Fine_ID = fp.Fine_ID
                 WHERE fp.Fine_ID IS NULL
                   AND (? IS NULL OR DATE(f.date_owed) >= ?)
                   AND (? IS NULL OR DATE(f.date_owed) <= ?)
+                  AND (? IS NULL OR LOWER(i.Item_name) LIKE ?)
                 GROUP BY f.Person_ID
             ) fee_stats ON p.Person_ID = fee_stats.Person_ID
             WHERE (? IS NULL OR p.role = ?)
+              AND (
+                  ? IS NULL OR
+                  LOWER(TRIM(CONCAT(COALESCE(p.First_name, ''), ' ', COALESCE(p.Last_name, '')))) LIKE ?
+              )
               AND p.signup_date IS NOT NULL
               AND COALESCE(borrow_stats.borrow_count, 0) >= ?
               AND (? = 0 OR COALESCE(fee_stats.unpaid_total, 0) > 0)
+              AND (
+                  ? IS NULL OR
+                  COALESCE(borrow_stats.borrow_count, 0) > 0 OR
+                  COALESCE(hold_stats.active_holds, 0) > 0 OR
+                  COALESCE(fee_stats.unpaid_fee_count, 0) > 0
+              )
             ORDER BY ${filters.orderBy} ${filters.orderDirection}, p.Last_name ASC, p.First_name ASC
             LIMIT ?`,
             [
@@ -594,18 +690,27 @@ async function getPatronsActivityReport(req, res) {
                 filters.periodStart,
                 filters.periodEnd,
                 filters.periodEnd,
+                filters.itemNamePattern,
+                filters.itemNamePattern,
                 filters.periodStart,
                 filters.periodStart,
                 filters.periodEnd,
                 filters.periodEnd,
+                filters.itemNamePattern,
+                filters.itemNamePattern,
                 filters.periodStart,
                 filters.periodStart,
                 filters.periodEnd,
                 filters.periodEnd,
+                filters.itemNamePattern,
+                filters.itemNamePattern,
                 filters.role,
                 filters.role,
+                filters.borrowerNamePattern,
+                filters.borrowerNamePattern,
                 filters.minBorrows,
                 filters.withUnpaidOnly ? 1 : 0,
+                filters.itemNamePattern,
                 filters.limit,
             ]
         );
