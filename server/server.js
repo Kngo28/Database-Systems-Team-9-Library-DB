@@ -74,6 +74,11 @@ const server = http.createServer((req, res) => {
                 items.deleteCopy(req, res);
             });
         });
+
+    } else if (req.method === 'PUT' && req.url === '/api/users/deactivate') {
+        verifyToken(req, res, () => {
+        users.deactivateOwnAccount(req, res);
+    });
     
     // staff-only — list all patrons (most recent first)
     } else if (req.method === 'GET' && req.url === '/api/users') {
