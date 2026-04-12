@@ -877,8 +877,22 @@ async function getRevenueReport(req, res) {
 }
 
 async function getRevenueOverview(req, res) {
-    const filters = getPeriodFilters(getSearchParams(req));
+    const searchParams = getSearchParams(req);
+    const filters = getPeriodFilters(searchParams);
     const rangeParams = getDateRangeParams(filters);
+    const role = parseOptionalInt(searchParams.get('role'));
+    const feeType = parseMappedInt(searchParams.get('feeType'), [1, 2, 3]);
+    const itemType = parseMappedInt(searchParams.get('itemType'), [1, 2, 3]);
+    const paidStatus = parseMappedInt(searchParams.get('paidStatus'), [1, 2]);
+
+    // item join/filter only needed when filtering by item type
+    const itemJoinSql = itemType !== null
+        ? `JOIN BorrowedItem bi ON f.BorrowedItem_ID = bi.BorrowedItem_ID
+           JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
+           JOIN Item i ON cp.Item_ID = i.Item_ID`
+        : '';
+    const itemFilterSql = itemType !== null ? `AND i.Item_type = ?` : '';
+    const itemParams = itemType !== null ? [itemType] : [];
 
     try {
         const [[kpis]] = await db.query(
@@ -889,22 +903,34 @@ async function getRevenueOverview(req, res) {
                 COUNT(*) AS total_fees,
                 COALESCE(SUM(CASE WHEN fp.Fine_ID IS NULL THEN 1 ELSE 0 END), 0) AS unpaid_fee_count
             FROM FeeOwed f
+            JOIN Person p ON f.Person_ID = p.Person_ID
+            ${itemJoinSql}
             LEFT JOIN FeePayment fp ON f.Fine_ID = fp.Fine_ID
-            WHERE ${getPeriodRangeClause('f.date_owed', true)}`,
-            rangeParams
+            WHERE ${getPeriodRangeClause('f.date_owed', true)}
+              AND (? IS NULL OR p.role = ?)
+              AND (? IS NULL OR f.fee_type = ?)
+              AND (? IS NULL OR f.status = ?)
+              ${itemFilterSql}`,
+            [...rangeParams, role, role, feeType, feeType, paidStatus, paidStatus, ...itemParams]
         );
 
         const [topItemRows] = await db.query(
             `SELECT i.Item_name, COALESCE(SUM(f.fee_amount), 0) AS total_fees_amount
             FROM FeeOwed f
+            JOIN Person p ON f.Person_ID = p.Person_ID
             JOIN BorrowedItem bi ON f.BorrowedItem_ID = bi.BorrowedItem_ID
             JOIN Copy cp ON bi.Copy_ID = cp.Copy_ID
             JOIN Item i ON cp.Item_ID = i.Item_ID
+            LEFT JOIN FeePayment fp ON f.Fine_ID = fp.Fine_ID
             WHERE ${getPeriodRangeClause('f.date_owed', true)}
+              AND (? IS NULL OR p.role = ?)
+              AND (? IS NULL OR f.fee_type = ?)
+              AND (? IS NULL OR f.status = ?)
+              AND (? IS NULL OR i.Item_type = ?)
             GROUP BY i.Item_ID, i.Item_name
             ORDER BY total_fees_amount DESC
             LIMIT 1`,
-            rangeParams
+            [...rangeParams, role, role, feeType, feeType, paidStatus, paidStatus, itemType, itemType]
         );
 
         sendJson(res, 200, {

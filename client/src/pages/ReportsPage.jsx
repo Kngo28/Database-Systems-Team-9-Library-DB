@@ -245,6 +245,10 @@ export default function ReportsPage() {
     if (reportType !== "revenue") return null;
     const params = new URLSearchParams();
     appendPeriodParams(params, currentFilters);
+    if (currentFilters.role && currentFilters.role !== "All") params.set("role", currentFilters.role);
+    if (currentFilters.feeType && currentFilters.feeType !== "All") params.set("feeType", currentFilters.feeType);
+    if (currentFilters.itemType && currentFilters.itemType !== "All") params.set("itemType", currentFilters.itemType);
+    if (currentFilters.paidStatus && currentFilters.paidStatus !== "All") params.set("paidStatus", currentFilters.paidStatus);
     const query = params.toString();
     return `/api/reports/revenue-overview${query ? `?${query}` : ""}`;
   }, [
@@ -253,6 +257,10 @@ export default function ReportsPage() {
     currentFilters.periodValue,
     currentFilters.customStart,
     currentFilters.customEnd,
+    currentFilters.role,
+    currentFilters.feeType,
+    currentFilters.itemType,
+    currentFilters.paidStatus,
   ]);
 
   function updateCurrentSort(value) {

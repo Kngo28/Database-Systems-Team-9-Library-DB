@@ -1,9 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FEE_STATUS_OPTIONS,
   FEE_TYPE_OPTIONS,
-  InputControl,
   ITEM_TYPE_OPTIONS,
   ROLE_OPTIONS,
   ReportTable,
@@ -15,7 +14,6 @@ import {
   formatFeeType,
   formatItemType,
   formatMoney,
-  formatNumber,
   formatRole,
 } from "./reportShared";
 
@@ -26,62 +24,44 @@ const GROUP_BY_OPTIONS = [
   { label: "By Role", value: "role" },
 ];
 
-const GROUPED_SORTS = ["group_label", "total_amount", "paid_amount", "unpaid_amount", "fee_count", "paid_count", "unpaid_count"];
-
-function groupData(data, groupBy) {
-  if (groupBy === "none") return data;
-
-  const groups = {};
-
-  for (const row of data) {
-    let key, label;
-    if (groupBy === "feeType") {
-      key = row.fee_type;
-      label = formatFeeType(row.fee_type);
-    } else if (groupBy === "itemType") {
-      key = row.Item_type;
-      label = formatItemType(row.Item_type);
-    } else {
-      key = row.role;
-      label = formatRole(row.role);
-    }
-
-    if (!groups[key]) {
-      groups[key] = {
-        group_key: key,
-        group_label: label,
-        total_amount: 0,
-        paid_amount: 0,
-        unpaid_amount: 0,
-        fee_count: 0,
-        paid_count: 0,
-        unpaid_count: 0,
-      };
-    }
-
-    const g = groups[key];
-    g.fee_count++;
-    g.total_amount += Number(row.fee_amount ?? 0);
-    if (Number(row.fee_status) === 2) {
-      g.paid_amount += Number(row.fee_amount ?? 0);
-      g.paid_count++;
-    } else {
-      g.unpaid_amount += Number(row.fee_amount ?? 0);
-      g.unpaid_count++;
-    }
-  }
-
-  return Object.values(groups);
+function getGroupKey(row, groupBy) {
+  if (groupBy === "feeType") return row.fee_type;
+  if (groupBy === "itemType") return row.Item_type;
+  return row.role;
 }
 
-function sortGrouped(rows, sort, direction) {
-  const mult = direction === "asc" ? 1 : -1;
-  return [...rows].sort((a, b) => {
-    const av = a[sort] ?? "";
-    const bv = b[sort] ?? "";
-    if (typeof av === "string") return av.localeCompare(bv) * mult;
-    return (av - bv) * mult;
-  });
+function getGroupLabel(row, groupBy) {
+  if (groupBy === "feeType") return formatFeeType(row.fee_type);
+  if (groupBy === "itemType") return formatItemType(row.Item_type);
+  return formatRole(row.role);
+}
+
+function getGroupTabs(data, groupBy) {
+  if (groupBy === "none") return [];
+  const counts = {};
+  const labels = {};
+  for (const row of data) {
+    const key = String(getGroupKey(row, groupBy));
+    counts[key] = (counts[key] ?? 0) + 1;
+    labels[key] = getGroupLabel(row, groupBy);
+  }
+  return Object.entries(counts).map(([key, count]) => ({ key, label: labels[key], count }));
+}
+
+function TabButton({ label, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+        active
+          ? "bg-green-900 text-white"
+          : "bg-white border border-gray-300 text-gray-700 hover:border-green-900 hover:text-green-900"
+      }`}
+    >
+      {label}
+    </button>
+  );
 }
 
 export const feesReportPage = {
@@ -165,95 +145,52 @@ export function FeesReportsTable({
   onColumnVisibilityChange,
   filters,
 }) {
-  const [groupedSort, setGroupedSort] = useState("total_amount");
-  const [groupedDirection, setGroupedDirection] = useState("desc");
-
   const groupBy = filters?.groupBy ?? "none";
+  const [activeTab, setActiveTab] = useState("all");
 
-  if (groupBy !== "none") {
-    const grouped = sortGrouped(groupData(data, groupBy), groupedSort, groupedDirection);
+  useEffect(() => {
+    setActiveTab("all");
+  }, [groupBy]);
 
-    function handleGroupedSort(key) {
-      if (groupedSort === key) {
-        setGroupedDirection((d) => (d === "desc" ? "asc" : "desc"));
-      } else {
-        setGroupedSort(key);
-        setGroupedDirection("desc");
-      }
-    }
+  const tabs = getGroupTabs(data, groupBy);
 
-    const groupLabel =
-      groupBy === "feeType" ? "Fee Type" : groupBy === "itemType" ? "Item Type" : "Role";
-
-    const groupedColumns = [
-      { key: "group_label", label: groupLabel },
-      { key: "total_amount", label: `Expected Revenue (${periodLabel})` },
-      { key: "paid_amount", label: `Collected (${periodLabel})` },
-      { key: "unpaid_amount", label: `Backlog (${periodLabel})` },
-      { key: "fee_count", label: "Total Fees" },
-      { key: "paid_count", label: "Paid" },
-      { key: "unpaid_count", label: "Unpaid" },
-    ];
-
-    return (
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md">
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-sm">
-            <thead className="bg-gray-100">
-              <tr>
-                {groupedColumns.map((col) => (
-                  <th
-                    key={col.key}
-                    className={`border border-gray-200 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide ${
-                      groupedSort === col.key ? "bg-green-100 text-green-900" : "text-gray-600"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleGroupedSort(col.key)}
-                      className="flex w-full items-center justify-between gap-2 text-left"
-                    >
-                      <span>{col.label}</span>
-                      <span className={`text-sm ${groupedSort === col.key ? "text-green-900" : "text-gray-400"}`}>
-                        {groupedSort === col.key ? (groupedDirection === "asc" ? "↑" : "↓") : "↕"}
-                      </span>
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {grouped.map((row, i) => (
-                <tr key={`${row.group_key}-${i}`} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="border border-gray-200 px-3 py-2 font-semibold text-green-900">{row.group_label}</td>
-                  <td className={`border border-gray-200 px-3 py-2 ${groupedSort === "total_amount" ? "bg-green-50" : ""}`}>{formatMoney(row.total_amount)}</td>
-                  <td className={`border border-gray-200 px-3 py-2 ${groupedSort === "paid_amount" ? "bg-green-50" : ""}`}>{formatMoney(row.paid_amount)}</td>
-                  <td className={`border border-gray-200 px-3 py-2 ${groupedSort === "unpaid_amount" ? "bg-green-50" : ""}`}>{formatMoney(row.unpaid_amount)}</td>
-                  <td className={`border border-gray-200 px-3 py-2 ${groupedSort === "fee_count" ? "bg-green-50" : ""}`}>{formatNumber(row.fee_count)}</td>
-                  <td className={`border border-gray-200 px-3 py-2 ${groupedSort === "paid_count" ? "bg-green-50" : ""}`}>{formatNumber(row.paid_count)}</td>
-                  <td className={`border border-gray-200 px-3 py-2 ${groupedSort === "unpaid_count" ? "bg-green-50" : ""}`}>{formatNumber(row.unpaid_count)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }
+  const filteredData =
+    groupBy === "none" || activeTab === "all"
+      ? data
+      : data.filter((row) => String(getGroupKey(row, groupBy)) === activeTab);
 
   const columns = getFeesColumns(periodLabel);
 
   return (
-    <ReportTable
-      reportType="revenue"
-      sort={sort}
-      sortDirection={sortDirection}
-      data={data}
-      columns={columns}
-      hiddenColumnKeys={hiddenColumnKeys}
-      onSortChange={onSortChange}
-      onColumnVisibilityChange={onColumnVisibilityChange}
-    />
+    <div>
+      {groupBy !== "none" && tabs.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <TabButton
+            label={`All (${data.length})`}
+            active={activeTab === "all"}
+            onClick={() => setActiveTab("all")}
+          />
+          {tabs.map((tab) => (
+            <TabButton
+              key={tab.key}
+              label={`${tab.label} (${tab.count})`}
+              active={activeTab === tab.key}
+              onClick={() => setActiveTab(tab.key)}
+            />
+          ))}
+        </div>
+      )}
+      <ReportTable
+        reportType="revenue"
+        sort={sort}
+        sortDirection={sortDirection}
+        data={filteredData}
+        columns={columns}
+        hiddenColumnKeys={hiddenColumnKeys}
+        onSortChange={onSortChange}
+        onColumnVisibilityChange={onColumnVisibilityChange}
+      />
+    </div>
   );
 }
 
@@ -270,7 +207,9 @@ export function getFeesColumns(periodLabel) {
           <div className="font-semibold text-green-900">
             {item.First_name} {item.Last_name}
           </div>
-          <div className="text-xs text-gray-500">ID: {item.Person_ID} · {formatRole(item.role)}</div>
+          <div className="text-xs text-gray-500">
+            ID: {item.Person_ID} · {formatRole(item.role)}
+          </div>
         </div>
       ),
       exportValue: (item) => `${item.First_name} ${item.Last_name} (ID: ${item.Person_ID})`,
@@ -306,7 +245,13 @@ export function getFeesColumns(periodLabel) {
       label: "Status",
       width: 100,
       render: (item) => (
-        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${Number(item.fee_status) === 2 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-700"}`}>
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+            Number(item.fee_status) === 2
+              ? "bg-green-100 text-green-800"
+              : "bg-red-100 text-red-700"
+          }`}
+        >
           {formatFeeStatus(item.fee_status)}
         </span>
       ),
