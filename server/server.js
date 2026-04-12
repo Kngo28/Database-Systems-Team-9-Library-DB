@@ -262,6 +262,13 @@ const server = http.createServer((req, res) => {
                 staff.updateStaffInfo(req, res);
             });
         });
+    // admin-only — soft deactivate a staff member
+    } else if (req.method === 'DELETE' && req.url.startsWith('/api/staff/')) {
+        verifyToken(req, res, () => {
+            requireAdmin(req, res, () => {
+                staff.deactivateStaff(req, res);
+            });
+        });
     // admin-only — reports on popularity
     } else if (req.method === 'GET' && req.url.startsWith('/api/reports/overview')) {
         verifyToken(req, res, () => {
