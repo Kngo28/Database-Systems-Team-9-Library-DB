@@ -489,32 +489,8 @@ export default function ReportsPage() {
           </button>
         </div>
 
-        {reportType === "revenue" ? (
-          <RevenueKPICards kpis={revenueKpis} loading={revenueKpisLoading} periodLabel={reportPeriodLabel} />
-        ) : (
-          <div className="mx-auto mb-6 grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <InventoryOverviewCard overview={overview} overviewLoading={overviewLoading} />
-            <OverviewStatCard
-              label={`Borrows Total (${reportPeriodLabel})`}
-              value={overviewLoading ? "Loading..." : formatNumber(overview.total_borrowed)}
-            />
-            <OverviewStatCard
-              label={`Active Borrows (${reportPeriodLabel})`}
-              value={overviewLoading ? "Loading..." : formatNumber(overview.total_active_borrows)}
-            />
-            <OverviewStatCard
-              label={`Fees Total (${reportPeriodLabel})`}
-              value={overviewLoading ? "Loading..." : formatNumber(overview.total_fees)}
-            />
-            <OverviewStatCard
-              label={`Revenue Total (${reportPeriodLabel})`}
-              value={overviewLoading ? "Loading..." : formatMoney(overview.total_revenue)}
-            />
-          </div>
-        )}
-
         <div className="bg-white rounded-xl border border-gray-200 shadow-md p-4 mb-6">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
             <SelectControl
               label="Report"
               value={reportType}
@@ -537,6 +513,30 @@ export default function ReportsPage() {
             <ActiveFiltersComponent filters={currentFilters} onChange={updateCurrentFilter} />
           </div>
         </div>
+
+        {reportType === "revenue" ? (
+          <RevenueKPICards kpis={revenueKpis} loading={revenueKpisLoading} periodLabel={reportPeriodLabel} />
+        ) : (
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <InventoryOverviewCard overview={overview} overviewLoading={overviewLoading} />
+            <OverviewStatCard
+              label={`Borrows Total (${reportPeriodLabel})`}
+              value={overviewLoading ? "Loading..." : formatNumber(overview.total_borrowed)}
+            />
+            <OverviewStatCard
+              label={`Active Borrows (${reportPeriodLabel})`}
+              value={overviewLoading ? "Loading..." : formatNumber(overview.total_active_borrows)}
+            />
+            <OverviewStatCard
+              label={`Fees Total (${reportPeriodLabel})`}
+              value={overviewLoading ? "Loading..." : formatNumber(overview.total_fees)}
+            />
+            <OverviewStatCard
+              label={`Revenue Total (${reportPeriodLabel})`}
+              value={overviewLoading ? "Loading..." : formatMoney(overview.total_revenue)}
+            />
+          </div>
+        )}
 
         {loading && <InfoBox text="Loading..." />}
         {error && <InfoBox text={error} error />}
@@ -592,41 +592,72 @@ function OverviewStatCard({ label, value }) {
 }
 
 function RevenueKPICards({ kpis, loading, periodLabel }) {
-  const fmt = (v) => (loading || !kpis ? "Loading..." : formatMoney(v));
-  const fmtN = (v) => (loading || !kpis ? "Loading..." : formatNumber(v));
+  const fmt = (v) => (loading || !kpis ? "—" : formatMoney(v));
+  const fmtN = (v) => (loading || !kpis ? "—" : formatNumber(v));
+
+  const collectionRate = !loading && kpis && Number(kpis.revenue_expected) > 0
+    ? `${((Number(kpis.revenue_collected) / Number(kpis.revenue_expected)) * 100).toFixed(1)}%`
+    : (loading || !kpis ? "—" : "N/A");
+
+  const avgFee = !loading && kpis && Number(kpis.total_fees) > 0
+    ? formatMoney(Number(kpis.revenue_expected) / Number(kpis.total_fees))
+    : (loading || !kpis ? "—" : "N/A");
 
   return (
-    <div className="mx-auto mb-6 grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-4 shadow-sm">
-        <div className="text-xs font-semibold uppercase tracking-wide text-green-700">Revenue Collected ({periodLabel})</div>
-        <div className="mt-2 text-2xl font-bold text-green-900">{fmt(kpis?.revenue_collected)}</div>
+    <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
+      {/* Row 1: revenue money metrics */}
+      <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-green-700">Revenue Collected</div>
+        <div className="mt-1 text-[11px] text-green-600">{periodLabel}</div>
+        <div className="mt-2 text-xl font-bold text-green-900">{fmt(kpis?.revenue_collected)}</div>
         <div className="mt-1 text-xs text-green-700">From paid fees</div>
       </div>
-      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
-        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Expected Revenue ({periodLabel})</div>
-        <div className="mt-2 text-2xl font-bold text-green-900">{fmt(kpis?.revenue_expected)}</div>
+      <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">Revenue Backlog</div>
+        <div className="mt-1 text-[11px] text-orange-500">{periodLabel}</div>
+        <div className="mt-2 text-xl font-bold text-orange-700">{fmt(kpis?.revenue_backlog)}</div>
+        <div className="mt-1 text-xs text-orange-600">Unpaid outstanding</div>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Expected Revenue</div>
+        <div className="mt-1 text-[11px] text-gray-400">{periodLabel}</div>
+        <div className="mt-2 text-xl font-bold text-green-900">{fmt(kpis?.revenue_expected)}</div>
         <div className="mt-1 text-xs text-gray-500">All fees incurred</div>
       </div>
-      <div className="rounded-xl border border-orange-200 bg-orange-50 px-5 py-4 shadow-sm">
-        <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">Revenue Backlog ({periodLabel})</div>
-        <div className="mt-2 text-2xl font-bold text-orange-700">{fmt(kpis?.revenue_backlog)}</div>
-        <div className="mt-1 text-xs text-orange-600">Unpaid fees outstanding</div>
+      <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Collection Rate</div>
+        <div className="mt-1 text-[11px] text-gray-400">{periodLabel}</div>
+        <div className="mt-2 text-xl font-bold text-green-900">{collectionRate}</div>
+        <div className="mt-1 text-xs text-gray-500">Collected vs. expected</div>
       </div>
-      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm text-center">
-        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Fees ({periodLabel})</div>
-        <div className="mt-2 text-2xl font-bold text-green-900">{fmtN(kpis?.total_fees)}</div>
+
+      {/* Row 2: counts and per-fee detail */}
+      <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total Fees</div>
+        <div className="mt-1 text-[11px] text-gray-400">{periodLabel}</div>
+        <div className="mt-2 text-xl font-bold text-green-900">{fmtN(kpis?.total_fees)}</div>
+        <div className="mt-1 text-xs text-gray-400">Fees incurred</div>
       </div>
-      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm text-center">
-        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Unpaid Fees ({periodLabel})</div>
-        <div className="mt-2 text-2xl font-bold text-red-600">{fmtN(kpis?.unpaid_fee_count)}</div>
+      <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Unpaid Fees</div>
+        <div className="mt-1 text-[11px] text-gray-400">{periodLabel}</div>
+        <div className="mt-2 text-xl font-bold text-red-600">{fmtN(kpis?.unpaid_fee_count)}</div>
+        <div className="mt-1 text-xs text-gray-400">Not yet collected</div>
       </div>
-      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
-        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Top Item by Fees ({periodLabel})</div>
-        <div className="mt-2 text-lg font-bold text-green-900 truncate">
-          {loading || !kpis ? "Loading..." : (kpis.top_item_name ?? "N/A")}
+      <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Avg Fee Amount</div>
+        <div className="mt-1 text-[11px] text-gray-400">{periodLabel}</div>
+        <div className="mt-2 text-xl font-bold text-green-900">{avgFee}</div>
+        <div className="mt-1 text-xs text-gray-400">Per fee incurred</div>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Top Item by Fees</div>
+        <div className="mt-1 text-[11px] text-gray-400">{periodLabel}</div>
+        <div className="mt-2 text-base font-bold text-green-900 truncate">
+          {loading || !kpis ? "—" : (kpis.top_item_name ?? "N/A")}
         </div>
         {!loading && kpis?.top_item_name && (
-          <div className="mt-1 text-xs text-gray-500">{formatMoney(kpis.top_item_fees)} total fees</div>
+          <div className="mt-1 text-xs text-gray-500">{formatMoney(kpis.top_item_fees)} total</div>
         )}
       </div>
     </div>

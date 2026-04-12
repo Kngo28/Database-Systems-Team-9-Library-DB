@@ -1,5 +1,4 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useEffect, useState } from "react";
 import {
   FEE_STATUS_OPTIONS,
   FEE_TYPE_OPTIONS,
@@ -17,53 +16,6 @@ import {
   formatRole,
 } from "./reportShared";
 
-const GROUP_BY_OPTIONS = [
-  { label: "No Grouping", value: "none" },
-  { label: "By Fee Type", value: "feeType" },
-  { label: "By Item Type", value: "itemType" },
-  { label: "By Role", value: "role" },
-];
-
-function getGroupKey(row, groupBy) {
-  if (groupBy === "feeType") return row.fee_type;
-  if (groupBy === "itemType") return row.Item_type;
-  return row.role;
-}
-
-function getGroupLabel(row, groupBy) {
-  if (groupBy === "feeType") return formatFeeType(row.fee_type);
-  if (groupBy === "itemType") return formatItemType(row.Item_type);
-  return formatRole(row.role);
-}
-
-function getGroupTabs(data, groupBy) {
-  if (groupBy === "none") return [];
-  const counts = {};
-  const labels = {};
-  for (const row of data) {
-    const key = String(getGroupKey(row, groupBy));
-    counts[key] = (counts[key] ?? 0) + 1;
-    labels[key] = getGroupLabel(row, groupBy);
-  }
-  return Object.entries(counts).map(([key, count]) => ({ key, label: labels[key], count }));
-}
-
-function TabButton({ label, active, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-        active
-          ? "bg-green-900 text-white"
-          : "bg-white border border-gray-300 text-gray-700 hover:border-green-900 hover:text-green-900"
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
-
 export const feesReportPage = {
   key: "revenue",
   label: "Revenue",
@@ -78,7 +30,6 @@ export const feesReportPage = {
       feeType: "All",
       itemType: "All",
       paidStatus: "All",
-      groupBy: "none",
     };
   },
   buildParams(params, filters) {
@@ -125,12 +76,6 @@ export function FeesReportsFilters({ filters, onChange }) {
         onChange={(value) => onChange("paidStatus", value)}
         options={FEE_STATUS_OPTIONS}
       />
-      <SelectControl
-        label="Group By"
-        value={filters.groupBy}
-        onChange={(value) => onChange("groupBy", value)}
-        options={GROUP_BY_OPTIONS}
-      />
     </>
   );
 }
@@ -143,54 +88,20 @@ export function FeesReportsTable({
   hiddenColumnKeys,
   onSortChange,
   onColumnVisibilityChange,
-  filters,
 }) {
-  const groupBy = filters?.groupBy ?? "none";
-  const [activeTab, setActiveTab] = useState("all");
-
-  useEffect(() => {
-    setActiveTab("all");
-  }, [groupBy]);
-
-  const tabs = getGroupTabs(data, groupBy);
-
-  const filteredData =
-    groupBy === "none" || activeTab === "all"
-      ? data
-      : data.filter((row) => String(getGroupKey(row, groupBy)) === activeTab);
-
   const columns = getFeesColumns(periodLabel);
 
   return (
-    <div>
-      {groupBy !== "none" && tabs.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          <TabButton
-            label={`All (${data.length})`}
-            active={activeTab === "all"}
-            onClick={() => setActiveTab("all")}
-          />
-          {tabs.map((tab) => (
-            <TabButton
-              key={tab.key}
-              label={`${tab.label} (${tab.count})`}
-              active={activeTab === tab.key}
-              onClick={() => setActiveTab(tab.key)}
-            />
-          ))}
-        </div>
-      )}
-      <ReportTable
-        reportType="revenue"
-        sort={sort}
-        sortDirection={sortDirection}
-        data={filteredData}
-        columns={columns}
-        hiddenColumnKeys={hiddenColumnKeys}
-        onSortChange={onSortChange}
-        onColumnVisibilityChange={onColumnVisibilityChange}
-      />
-    </div>
+    <ReportTable
+      reportType="revenue"
+      sort={sort}
+      sortDirection={sortDirection}
+      data={data}
+      columns={columns}
+      hiddenColumnKeys={hiddenColumnKeys}
+      onSortChange={onSortChange}
+      onColumnVisibilityChange={onColumnVisibilityChange}
+    />
   );
 }
 
