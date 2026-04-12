@@ -79,7 +79,7 @@ export const FEE_STATUS_OPTIONS = [
   { label: "Unpaid", value: "1" },
 ];
 
-export const DEFAULT_PERIOD_TYPE = "quarter";
+export const DEFAULT_PERIOD_TYPE = "all";
 const FIELD_CLASS_NAME = "w-full rounded border border-gray-300 bg-white px-3 py-2";
 
 function getMappedLabel(map, value, fallback = "") {
