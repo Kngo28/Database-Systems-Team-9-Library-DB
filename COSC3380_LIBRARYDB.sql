@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS FeePayment (
   FOREIGN KEY (Fine_ID) REFERENCES FeeOwed(Fine_ID)
 );
 
-CREATE TABLE IF NOT EXISTS notification (
+CREATE TABLE IF NOT EXISTS Notification (
   Notification_ID  INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
   Person_ID        INT NOT NULL,
   type             SMALLINT NOT NULL,
