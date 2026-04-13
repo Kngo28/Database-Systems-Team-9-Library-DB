@@ -72,6 +72,7 @@ export default function ManageRoomsPage() {
         setRooms((prev) =>
           prev.map((rm) => rm.Room_ID === room.Room_ID ? { ...rm, Room_status: newStatus } : rm)
         );
+        setMessage({ text: data.message, success: true });
       } else {
         setMessage({ text: data.error || "Failed to update room.", success: false });
       }
