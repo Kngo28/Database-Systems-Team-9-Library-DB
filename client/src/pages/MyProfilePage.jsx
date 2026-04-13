@@ -11,6 +11,7 @@ export default function MyProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(null);
   const [originalData, setOriginalData] = useState(null);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
 
   const token = sessionStorage.getItem("token");
   const personId = sessionStorage.getItem("personId");
@@ -136,12 +137,6 @@ export default function MyProfilePage() {
   };
 
   const handleDeactivateAccount = async () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to deactivate your account? This action cannot be undone."
-    );
-
-    if (!confirmed) return;
-
     try {
       setError("");
 
@@ -316,7 +311,7 @@ export default function MyProfilePage() {
 
           <div className="pt-6 border-t border-gray-200">
             <button
-              onClick={handleDeactivateAccount}
+              onClick={() => setShowDeactivateConfirm(true)}
               className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700"
             >
               Deactivate My Account
@@ -324,6 +319,34 @@ export default function MyProfilePage() {
           </div>
         </div>
       </div>
+
+      {showDeactivateConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 p-6">
+            <h2 className="text-xl font-bold text-red-700 mb-2">Deactivate Account</h2>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to deactivate your account? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeactivateConfirm(false)}
+                className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg font-semibold hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeactivateConfirm(false);
+                  handleDeactivateAccount();
+                }}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700"
+              >
+                Yes, Deactivate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
