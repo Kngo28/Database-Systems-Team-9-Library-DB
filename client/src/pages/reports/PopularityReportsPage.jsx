@@ -38,8 +38,8 @@ const CD_TYPE_OPTIONS = [
 
 const DEVICE_TYPE_OPTIONS = [
   { label: "All", value: ALL_OPTION },
-  { label: "Tablet", value: "1" },
-  { label: "Misc", value: "2" },
+  { label: "Computer", value: "1" },
+  { label: "Tablet", value: "2" },
   { label: "Laptop", value: "3" },
 ];
 

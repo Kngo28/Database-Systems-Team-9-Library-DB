@@ -13,8 +13,8 @@ const CD_TYPE_LABELS = {
   3: "CD",
 };
 const DEVICE_TYPE_LABELS = {
-  1: "Tablet",
-  2: "Misc",
+  1: "Computer",
+  2: "Tablet",
   3: "Laptop",
 };
 
