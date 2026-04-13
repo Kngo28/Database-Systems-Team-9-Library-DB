@@ -1,11 +1,13 @@
 import NavigationBar from "../components/NavigationBar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import bannerImg from "../assets/banner.png";
 import userIcon from "../assets/user.png";
 import roomIcon from "../assets/room.png";
 import deviceIcon from "../assets/device.png";
 import { getSessionRoleState } from "../auth";
+import { apiFetch } from "../api";
+import ItemImage from "../components/ItemImage";
 
 export default function CustomerPage() {
   const navigate = useNavigate();
@@ -13,6 +15,22 @@ export default function CustomerPage() {
 
   const [category, setCategory] = useState("All");
   const [query, setQuery] = useState("");
+  const [featuredBooks, setFeaturedBooks] = useState([]);
+  const [featuredLoading, setFeaturedLoading] = useState(true);
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("token");
+    apiFetch("/api/items?type=1", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((books) => {
+        const sortedBooks = [...(Array.isArray(books) ? books : [])]
+          .sort((a, b) => b.available_copies - a.available_copies)
+          .slice(0, 3);
+        setFeaturedBooks(sortedBooks);
+      })
+      .catch(() => {})
+      .finally(() => setFeaturedLoading(false));
+  }, []);
 
   const handleSearch = () => {
     const params = new URLSearchParams();
@@ -97,6 +115,32 @@ export default function CustomerPage() {
         </div>
       </section>
 
+      {/* Featured Items */}
+      <section className="max-w-6xl mx-auto px-6 py-10 pb-0">
+        <h2 className="text-2xl font-bold text-green-900 mb-1">Featured Items</h2>
+        <p className="text-sm text-gray-500 mb-6">Handpicked titles available in our collection.</p>
+
+        {featuredLoading ? (
+          <p className="text-sm text-gray-400 italic">Loading featured items...</p>
+        ) : (
+          <div className="space-y-8">
+
+            {/* Top Books */}
+            {featuredBooks.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-3">Top Books</h3>
+                <div className="flex gap-4">
+                  {featuredBooks.map((item) => (
+                    <FeaturedCard key={item.Item_ID} item={item} navigate={navigate} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+      </section>
+
       {/*main grid*/}
       <section className="max-w-6xl mx-auto px-6 py-10">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -131,6 +175,51 @@ export default function CustomerPage() {
           ))}
         </div>
       </section>
+
+    </div>
+  );
+}
+
+function FeaturedCard({ item, navigate }) {
+  const available = Number(item.available_copies);
+  const total = Number(item.total_copies);
+
+  return (
+    <div
+      onClick={() => navigate(`/catalog/${item.Item_ID}`)}
+      className="cursor-pointer group flex flex-col bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition w-[160px] shrink-0"
+    >
+      {/* Poster image */}
+      <div className="w-full aspect-[2/3] bg-gray-100 overflow-hidden">
+        <ItemImage
+          itemId={item.Item_ID}
+          itemName={item.Item_name}
+          className="w-full h-full"
+          imageClassName="w-full h-full object-cover"
+        />
+      </div>
+
+      {/* Info section */}
+      <div className="p-4 flex flex-col gap-2">
+        <div>
+          <p className="font-bold text-gray-900 text-base leading-snug line-clamp-2">
+            {item.Item_name}
+          </p>
+          <p className="text-sm text-green-700 mt-0.5 truncate">
+            {item.author_firstName} {item.author_lastName}
+          </p>
+        </div>
+
+        {item.book_genre && (
+          <span className="self-start bg-purple-100 text-purple-700 text-xs font-semibold px-3 py-1 rounded-full">
+            {item.book_genre}
+          </span>
+        )}
+
+        <p className="text-sm text-gray-500">
+          {available} / {total} available
+        </p>
+      </div>
     </div>
   );
 }
