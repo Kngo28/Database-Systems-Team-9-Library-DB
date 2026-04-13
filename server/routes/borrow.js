@@ -108,24 +108,28 @@ async function borrowItem(req, res) {
             let patronHold = null;
 
             if (activeHolds.length > 0) {
-                // holds exist — patron must be first in the item queue
                 patronHold = activeHolds.find(
                     h => parseInt(h.Person_ID) === parseInt(person_id) &&
                          (h.hold_status === 2 || h.queue_status === 0)
                 );
-                if (!patronHold) {
-                    res.writeHead(403);
-                    return res.end(JSON.stringify({ error: 'This item has active holds. You must be first in the hold queue to check it out.' }));
-                }
 
-                if (patronHold.hold_status === 2) {
-                    // Ready hold — use the specific copy already assigned to them
-                    copy_id = patronHold.Copy_ID;
+                if (patronHold) {
+                    if (patronHold.hold_status === 2) {
+                        // Ready hold — use the specific copy already assigned to them
+                        copy_id = patronHold.Copy_ID;
+                    } else {
+                        // Waiting but first in queue — grab any available copy
+                        if (availableCopies.length === 0) {
+                            res.writeHead(400);
+                            return res.end(JSON.stringify({ error: 'No copies currently available' }));
+                        }
+                        copy_id = availableCopies[0].Copy_ID;
+                    }
                 } else {
-                    // Waiting but first in queue — grab any available copy
+                    // patron is not in the hold queue — only block if no free copies remain
                     if (availableCopies.length === 0) {
-                        res.writeHead(400);
-                        return res.end(JSON.stringify({ error: 'No copies currently available' }));
+                        res.writeHead(403);
+                        return res.end(JSON.stringify({ error: 'This item has active holds and no free copies are available.' }));
                     }
                     copy_id = availableCopies[0].Copy_ID;
                 }
