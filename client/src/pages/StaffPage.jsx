@@ -9,6 +9,7 @@ import catalogueIcon from "../assets/catalogue.png";
 import holdIcon from "../assets/hold.png";
 import itemIcon from "../assets/item.png";
 import roomIcon from "../assets/room.png";
+import manageRoomIcon from "../assets/manageroom.png";
 import deviceIcon from "../assets/device.png";
 
 const myAccountCards = [
@@ -72,7 +73,7 @@ const staffToolCards = [
   {
     title: "Manage Rooms",
     description: "Add rooms and control availability.",
-    icon: roomIcon,
+    icon: manageRoomIcon,
     path: "/manage-rooms",
   },
 ];
