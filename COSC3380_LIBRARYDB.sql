@@ -163,7 +163,6 @@ CREATE TABLE IF NOT EXISTS notification (
 );
 
 DELIMITER $$
-
 CREATE TRIGGER restrict_borrow_on_fee
 AFTER INSERT ON FeeOwed
 FOR EACH ROW
@@ -263,5 +262,4 @@ END $$
 
 
 DELIMITER ;
-
 
