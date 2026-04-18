@@ -225,7 +225,7 @@ BEGIN
             VALUES (
                 NEW.Person_ID,
                 2,
-                'Your fee has been resolved. Your borrowing privileges have been restored.',
+                'Your fees have been resolved. Your borrowing privileges have been restored.',
                 0,
                 NOW(),
                 NEW.Fine_ID
