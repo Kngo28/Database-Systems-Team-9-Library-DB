@@ -261,43 +261,28 @@ async function returnItem(req, res) {
 
             if (isLate) {
                 const lateFee = ITEM_FEE_POLICY[record.Item_type]?.late || 5.0;
-                const [lateFeeResult] = await conn.query(
+                await conn.query(
                     `INSERT INTO FeeOwed (date_owed, status, fee_amount, fee_type, Person_ID, BorrowedItem_ID)
                      VALUES (?, 1, ?, 1, ?, ?)`,
                     [formatDate(today), lateFee, record.Person_ID, borrowedItem_id]
-                );
-                await conn.query(
-                    `INSERT INTO notification (Person_ID, type, message, is_read, created_at, Fine_ID)
-                     VALUES (?, 2, ?, 0, NOW(), ?)`,
-                    [record.Person_ID, `A late fee of $${lateFee.toFixed(2)} has been added to your account for "${record.Item_name}".`, lateFeeResult.insertId]
                 );
             }
 
             if (damaged) {
                 const damageFee = ITEM_FEE_POLICY[record.Item_type]?.damage || 25.0;
-                const [damageFeeResult] = await conn.query(
+                await conn.query(
                     `INSERT INTO FeeOwed (date_owed, status, fee_amount, fee_type, Person_ID, BorrowedItem_ID)
                      VALUES (?, 1, ?, 2, ?, ?)`,
                     [formatDate(today), damageFee, record.Person_ID, borrowedItem_id]
-                );
-                await conn.query(
-                    `INSERT INTO notification (Person_ID, type, message, is_read, created_at, Fine_ID)
-                     VALUES (?, 2, ?, 0, NOW(), ?)`,
-                    [record.Person_ID, `A damage fee of $${damageFee.toFixed(2)} has been added to your account for "${record.Item_name}".`, damageFeeResult.insertId]
                 );
             }
 
             if (lost) {
                 const lossFee = ITEM_FEE_POLICY[record.Item_type]?.loss || 30.0;
-                const [lossFeeResult] = await conn.query(
+                await conn.query(
                     `INSERT INTO FeeOwed (date_owed, status, fee_amount, fee_type, Person_ID, BorrowedItem_ID)
                      VALUES (?, 1, ?, 3, ?, ?)`,
                     [formatDate(today), lossFee, record.Person_ID, borrowedItem_id]
-                );
-                await conn.query(
-                    `INSERT INTO notification (Person_ID, type, message, is_read, created_at, Fine_ID)
-                     VALUES (?, 2, ?, 0, NOW(), ?)`,
-                    [record.Person_ID, `A loss fee of $${lossFee.toFixed(2)} has been added to your account for "${record.Item_name}".`, lossFeeResult.insertId]
                 );
             }
 
